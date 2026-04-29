@@ -1,0 +1,80 @@
+version: "3.8"
+
+services:
+
+  # =========================
+  # 1. MySQL 数据库
+  # =========================
+  sportshop-db:
+    image: mysql:8.0.39
+    container_name: sportshop-db
+    environment:
+      MYSQL_DATABASE: sport_shop
+      MYSQL_ROOT_PASSWORD: 123456
+      TZ: Asia/Shanghai
+    ports:
+      - "3307:3306"
+    volumes:
+      - ./mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    restart: always
+    command:
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  # =========================
+  # 2. Redis 缓存
+  # =========================
+  sportshop-redis:
+    image: redis:latest
+    container_name: sportshop-redis
+    ports:
+      - "6378:6379"
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # =========================
+  # 3. Spring Boot 后端
+  # =========================
+  sportshop-server:
+    build: ./server
+    container_name: sportshop-server
+    ports:
+      - "8080:8080"
+    depends_on:
+      sportshop-db:
+        condition: service_healthy
+      sportshop-redis:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://sportshop-db:3306/sport_shop?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: 123456
+
+      SPRING_DATA_REDIS_HOST: sportshop-redis
+      SPRING_DATA_REDIS_PORT: 6379
+
+      SPRING_PROFILES_ACTIVE: prod
+    restart: always
+
+  # =========================
+  # 4. Vue 前端 (Nginx)
+  # =========================
+  sportshop-ui:
+    build: ./client
+    container_name: sportshop-ui
+    ports:
+      - "81:80"
+    depends_on:
+      - sportshop-server
+    restart: always

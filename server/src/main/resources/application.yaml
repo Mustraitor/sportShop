@@ -1,0 +1,30 @@
+server:
+  port: 8080 # 项目端口号
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: sportShop
+
+  # 数据库连接配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:sport_shop}?useUnicode=true&characterEncoding=utf-8&serverTimezone=GMT%2B8&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    password: ${SPRING_DATASOURCE_PASSWORD:123456}
+
+  # Redis 配置
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      password: ${SPRING_DATA_REDIS_PASSWORD:}
+      timeout: 10s
+  mvc:
+    format:
+      date: yyyy-MM-dd HH:mm:ss
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true # 自动开启驼峰命名转换（数据库 goods_name -> Java goodsName）
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 在控制台打印 SQL 语句，开发调试必看
