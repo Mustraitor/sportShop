@@ -2,4 +2,4 @@
 
 - 配置redis, redis-server 启动
 
-- 后端（server目录）：更改自己MySQL数据库用户名与密码，然后启动后端项目
+- 后端（server目录）：把application.yml里的MySQL用户名和密码改成自己的，然后再启动后端项目。
