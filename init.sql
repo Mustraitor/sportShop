@@ -1,10 +1,5 @@
 CREATE DATABASE IF NOT EXISTS sport_shop DEFAULT CHARSET utf8mb4;
 USE sport_shop;
-SET NAMES utf8mb4;
-ALTER DATABASE sport_shop CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
--- =====================================================
--- RuoYi 系统表
--- =====================================================
 
 DROP TABLE IF EXISTS sys_config;
 CREATE TABLE sys_config (
@@ -119,14 +114,11 @@ INSERT INTO `sys_role_menu` VALUES ('1', '100');
 INSERT INTO `sys_role_menu` VALUES ('1', '101');
 INSERT INTO `sys_role_menu` VALUES ('1', '102');
 
-INSERT INTO `sys_user` VALUES ('1', 'admin', 'alex', '00', 'alex@163.com', '15888888888', '1', 'https://wx.qlogo.cn/mmopen/vi_32/1yzTKJKIfurhDI29RqibEicNOoH0WiaCuKb6jWppVu4uzWovO0d1ICAwuW4rB4zfUxVvGHfNuxXLHu44t3yBkgbicQ/132', '$2a$10$boXFAiZ4OdtZiT2owx.xx.F848I4rh4JCQQDvgAaEwiktcFRh8Ile', '0', '0', '127.0.0.1', '2018-03-16 11:33:00', 'admin', '2018-03-16 11:33:00', 'ry', '2020-03-15 17:33:47', '管理员');
-INSERT INTO `sys_user` VALUES ('2', '元春', '元春', '00', 'yr@qq.com', '15666666666', '1', 'https://wx.qlogo.cn/mmopen/vi_32/1yzTKJKIfurhDI29RqibEicNOoH0WiaCuKb6jWppVu4uzWovO0d1ICAwuW4rB4zfUxVvGHfNuxXLHu44t3yBkgbicQ/132', '$2a$10$LP25Pp2GITfV3QX6v.MmT.jV7vi.1rnQQJeeab3/AIyJn2.kPFiOq', '0', '0', '127.0.0.1', '2018-03-16 11:33:00', 'admin', '2018-03-16 11:33:00', 'admin', '2020-03-16 22:03:17', '测试员');
+INSERT INTO `sys_user` VALUES ('1', 'admin', 'alex', 'alex@163.com', '15888888888', '1', 'https://wx.qlogo.cn/mmopen/vi_32/1yzTKJKIfurhDI29RqibEicNOoH0WiaCuKb6jWppVu4uzWovO0d1ICAwuW4rB4zfUxVvGHfNuxXLHu44t3yBkgbicQ/132', '$2a$10$boXFAiZ4OdtZiT2owx.xx.F848I4rh4JCQQDvgAaEwiktcFRh8Ile', '0', '0', '127.0.0.1', '2018-03-16 11:33:00', 'admin', '2018-03-16 11:33:00', 'ry', '2020-03-15 17:33:47', '管理员');
+INSERT INTO `sys_user` VALUES ('2', '元春', '元春', 'yr@qq.com', '15666666666', '1', 'https://wx.qlogo.cn/mmopen/vi_32/1yzTKJKIfurhDI29RqibEicNOoH0WiaCuKb6jWppVu4uzWovO0d1ICAwuW4rB4zfUxVvGHfNuxXLHu44t3yBkgbicQ/132', '$2a$10$LP25Pp2GITfV3QX6v.MmT.jV7vi.1rnQQJeeab3/AIyJn2.kPFiOq', '0', '0', '127.0.0.1', '2018-03-16 11:33:00', 'admin', '2018-03-16 11:33:00', 'admin', '2020-03-16 22:03:17', '测试员');
 
 INSERT INTO `sys_user_role` VALUES ('1', '1');
 INSERT INTO `sys_user_role` VALUES ('2', '2');
--- =====================================================
--- 电商业务表（核心模块）
--- =====================================================
 
 -- 收货地址
 DROP TABLE IF EXISTS address;
@@ -165,6 +157,7 @@ CREATE TABLE product (
   main_image VARCHAR(255),
   price DECIMAL(10,2),
   status TINYINT DEFAULT 1,
+  del_flag TINYINT DEFAULT 0
   stock INT DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
