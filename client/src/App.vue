@@ -1,7 +1,12 @@
-<script setup></script>
+<script setup>
+import LoginDialog from '@/components/LoginDialog.vue'
+import { useUserStore } from '@/stores/user' 
+const userStore = useUserStore() 
+</script>
 
 <template>
-  <router-view></router-view> 
+  <router-view :key="userStore.token" />
+    <LoginDialog /> 
 </template>
 
 <style>

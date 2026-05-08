@@ -1,7 +1,11 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getUserList } from '@/api/user.js'
+import { logoutApi, getUserList } from '@/api/user.js'
+import { useUserStore } from '@/stores/user' 
+import { useRouter } from 'vue-router'
 
+const userStore = useUserStore() 
+const router = useRouter()
 const userList = ref([])
 // 请求后端接口
 const getUsers = async () => {
@@ -14,6 +18,16 @@ const getUsers = async () => {
   }
 } 
 
+const handleLogout = async () => {
+  try {
+    await logoutApi()
+  } catch (err) {
+    console.error('后端退出记录失败', err)
+  } finally {
+    userStore.clearLoginInfo()
+    router.push('/')
+  }
+}
 onMounted(() => {
   getUsers()
 })
@@ -32,11 +46,31 @@ onMounted(() => {
     </div>
     <!-- 右侧导航 -->
     <div class="nav">
-      <!-- <router-link to="/home">首页</router-link> -->
       <router-link to="/cart">购物车</router-link>
       <router-link to="/order">订单</router-link>
       <router-link to="/user">我的</router-link>
-      <router-link to="/login">登录</router-link>
+
+      <span v-if="!userStore.token" class="login-link" @click="userStore.showLogin()">
+        登录
+      </span>
+
+      <el-dropdown v-else trigger="click">
+        <div class="avatar-wrapper">
+          <el-avatar 
+            :size="30" 
+            :src="userStore.userInfo.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" 
+          />
+          <span class="user-name">{{ userStore.userInfo.userName }}</span>
+        </div>
+        
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item @click="router.push('/user')">个人中心</el-dropdown-item>
+            <el-dropdown-item @click="router.push('/order')">我的订单</el-dropdown-item>
+            <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
   </header>
   <!-- <img src="https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/%E7%BA%B8%E4%B8%8A%E7%9A%84%E9%AD%94%E6%B3%95%E4%BD%BF/20.jpg" alt=""/> -->

@@ -26,7 +26,6 @@ public class UserController {
             vo.setUserName(dto.getUserName());
             vo.setNickName(dto.getNickName());
             vo.setEmail(dto.getEmail());
-//            vo.setDisplayName("欢迎 " + dto.getUserName());
             return vo;
         }).toList();
 

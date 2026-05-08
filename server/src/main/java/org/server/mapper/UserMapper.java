@@ -6,4 +6,5 @@ import org.server.entity.User;
 
 @Mapper
 public interface UserMapper extends BaseMapper<User> {
+
 }
