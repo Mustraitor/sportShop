@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { logoutApi, getUserList } from '@/api/user.js'
 import { useUserStore } from '@/stores/user' 
 import { useRouter } from 'vue-router'
+import SearchModal from "@/components/SearchModal.vue";
 
 const userStore = useUserStore() 
 const router = useRouter()
@@ -28,189 +29,297 @@ const handleLogout = async () => {
     router.push('/')
   }
 }
+
 onMounted(() => {
-  getUsers()
+  // getUsers()
 })
 </script>
 <template>
   <header class="header">
     <!-- 左侧 Logo -->
-    <div class="logo">
-      <img src="/favicon.ico" alt="logo" />
-      <span>型动派</span>
-    </div>
-    <!-- 中间搜索 -->
-    <div class="search">
-      <input type="text" placeholder="搜索商品..." />
-      <button>搜索</button>
-    </div>
+  <router-link to="/" class="logo">
+    <img src="/favicon.ico" alt="型动派 logo" />
+    <span>型动派</span>
+  </router-link>
+    <SearchModal />
+    
     <!-- 右侧导航 -->
     <div class="nav">
-      <router-link to="/cart">购物车</router-link>
-      <router-link to="/order">订单</router-link>
-      <router-link to="/user">我的</router-link>
-
-      <span v-if="!userStore.token" class="login-link" @click="userStore.showLogin()">
-        登录
-      </span>
-
-      <el-dropdown v-else trigger="click">
-        <div class="avatar-wrapper">
-          <el-avatar 
-            :size="30" 
-            :src="userStore.userInfo.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" 
-          />
-          <span class="user-name">{{ userStore.userInfo.userName }}</span>
+      <router-link to="/cart" class="nav-item">
+        <div class="nav-icon cart-icon">
+          <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-hidden="true"
+              >
+              <path d="M8.2 8.5C8.2 5 9.9 2.8 12 2.8s3.8 2.3 3.8 5.7M5 20.5c.1.5.5.8 1 .8h12c.5 0 .9-.3 1-.8L21.1 10.8H2.9L5 20.5Z" />
+          </svg>
+          <div>购物车</div>
         </div>
-        
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item @click="router.push('/user')">个人中心</el-dropdown-item>
-            <el-dropdown-item @click="router.push('/order')">我的订单</el-dropdown-item>
-            <el-dropdown-item divided @click="handleLogout">退出登录</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
-    </div>
+      </router-link>
+      <router-link v-show="userStore.token" to="/order" class="nav-item" >
+        <div class="nav-icon">
+          <svg 
+            width="24" 
+            height="24" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            stroke-width="1.5" 
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-6-4h6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div>订单</div>
+        </div>
+      </router-link>
+      <div v-if="!userStore.token" class="nav-item" @click="userStore.showLogin()">
+          <div class="nav-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="7" r="3" />
+              <path d="M5 20c0-4 3-6 7-6s7 2 7 6" />
+            </svg>
+            <div>登录</div>
+          </div>
+      </div>
+      <div v-else class="user-menu-container">
+          <div class="nav-icon avatar-trigger">
+            <img 
+              class="custom-avatar" 
+              :src="userStore.userInfo.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" 
+              alt="avatar"
+            />
+            <div class="user-name">{{ userStore.userInfo.userName }}</div>
+          </div>
+          <div class="dropdown-content">
+            <div class="dropdown-item" @click="router.push('/profile')">个人中心</div>
+            <div class="dropdown-item" @click="router.push('/order')">我的订单</div>
+            <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
+          </div>
+      </div>
+      </div>
   </header>
   <!-- <img src="https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/%E7%BA%B8%E4%B8%8A%E7%9A%84%E9%AD%94%E6%B3%95%E4%BD%BF/20.jpg" alt=""/> -->
   <!-- <a href="https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/%E7%BA%B8%E4%B8%8A%E7%9A%84%E9%AD%94%E6%B3%95%E4%BD%BF/20.jpg">666</a> -->
  
   <!-- 测试前后端数据库连通性 -->
-  <div>
+  <!-- <div style="margin-top: 90px;">
     <h2>用户列表测试</h2>
     <div v-for="item in userList" :key="item.userId">
       {{ item.userName }}
     </div>
-  </div>
+  </div> -->
 
 </template>
 <style scoped>
-/* 基础变量 */
-:root {
-  --primary-blue: #3643ba;   /* 迪卡侬品牌蓝 */
-  --bg-gray: #f5f4f5;        /* 搜索框背景灰色 */
-  --text-main: #333333;      /* 主文字颜色 */
-  --border-color: #eeeeee;
-}
-
-/* Header 容器 */
+/* 头部整体布局 */
 .header {
-  height: 80px;
-  background: #fff;
+  position: sticky;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1000; 
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 40px;
-  border-bottom: 1px solid var(--border-color);
-  font-family: "Helvetica Neue", Helvetica, Arial, "PingFang SC", sans-serif;
+  height: 80px;
+  background-color: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
 }
 
-/* 左侧 Logo 区 */
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
+/* 左侧 Logo 区域 */
+.logo { 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  cursor: pointer; 
 }
-
-.logo img {
-  width: 90px; 
-  height: auto;
+.logo img { 
+  height: 45px; 
+  width: auto; 
 }
-
 .logo span {
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--primary-blue);
-  letter-spacing: 1px;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-size: 22px; 
+  font-weight: 500; 
+  color: var(--main-blue-dark); 
+  letter-spacing: 3px;
+  -webkit-font-smoothing: antialiased; 
+  font-style: italic;
 }
 
+/* 中间搜索框区域 */
 .search {
-  display: flex;
-  align-items: center;
-  background: var(--bg-gray);
-  border-radius: 25px;
-  padding: 4px 18px;
-  flex: 0 1 450px; 
-  border: 1px solid black;
-  margin: 0 30px;
-  transition: all 0.3s ease;
-}
-
-
-.search:focus-within {
-  background: #fff;
-  box-shadow: 0 0 0 1px var(--primary-blue);
+  flex: 1;
+  max-width: 500px;
+  margin: 0 40px;
+  position: relative;
 }
 
 .search input {
-  flex: 1;
-  height: 36px;
-  background: transparent;
-  border: none;
+  width: 100%;
+  padding: 10px 20px;
+  padding-right: 50px; /* 给图标预留空间 */
+  border: 1.5px solid #333;
+  border-radius: 25px;
   outline: none;
-  padding: 0 10px;
   font-size: 14px;
-  color: var(--text-main);
 }
 
 .search button {
-  background: transparent;
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
   border: none;
-  color: #666;
-  font-weight: 600;
   cursor: pointer;
-  padding: 0 5px;
-  font-size: 14px;
-}
 
-.search button:hover {
-  color: var(--primary-blue);
-}
-
-
-.nav {
+  /* 关键：让 SVG 继承颜色 */
+  color: #333;
   display: flex;
   align-items: center;
-  gap: 25px;
+  justify-content: center;
+}
+
+.search button svg {
+  pointer-events: none; /* 避免点到 SVG 失效 */
+}
+
+/* 右侧导航项容器 */
+.nav { display: flex; align-items: center; gap: 30px; }
+.nav a { text-decoration: none; color: inherit; }
+
+/* 统一图标+文字的垂直布局类 */
+.nav-item, .nav-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #333;
+  transition: opacity 0.2s;
+  /* --- 新增：为伪元素提供定位基准 --- */
+  position: relative; 
+  padding-bottom: 4px; /* 稍微留出一点底部间距，防止下划线紧贴文字 */
+}
+
+.nav-item:hover { 
+  opacity: 0.7;
+}
+
+/* --- 修改：伪元素特效 --- */
+.nav-item::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0; /* 控制下划线在容器最底部 */
+  width: 100%;
+  height: 2px;
+  background-color: #0175b9;
+  
+  /* 初始状态：横向缩放为 0 */
+  transform: scaleX(0);
+  /* 设置缩放中心，可以是 center 或 left */
+  transform-origin: center; 
+  transition: transform 0.3s ease;
+}
+
+/* 悬停时激活伪元素 */
+.nav-item:hover::after {
+  transform: scaleX(1);
+}
+
+/* 图标和文字的间距 */
+.nav-icon svg { margin-bottom: 2px; }
+
+/* 统一文字部分样式 */
+.nav-icon div, .user-name {
+  font-size: 12px !important;
+  line-height: 1;
+  white-space: nowrap;
+  margin-top: 4px;
+}
+
+/* 自定义头像图片样式 */
+.custom-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid #eee;
+  object-fit: cover;
 }
 
 
-.nav a {
-  text-decoration: none;
-  color: var(--text-main);
-  font-size: 15px;
-  font-weight: 500;
-  position: relative;
-  transition: color 0.2s;
+.user-menu-container {
+  position: relative; /* 让弹窗相对于它定位 */
 }
 
-.nav a:hover {
-  color: var(--primary-blue);
+.dropdown-content {
+  display: none; /* 默认隐藏 */
+  position: absolute;
+  top: 100%;
+  right: -10px; /* 微调对齐使其居中偏下 */
+  margin-top: 15px;
+  background-color: #fff;
+  min-width: 110px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border-radius: 8px;
+  z-index: 100;
+  padding: 8px 0;
+  border: 1px solid var(--border-color);
 }
 
-.nav a[to="/login"] {
-  font-weight: 600;
+/* 增加一个透明伪元素防止鼠标移开时菜单消失太快（提升体验） */
+.user-menu-container::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 15px; 
 }
 
+/* 鼠标悬停容器时显示弹窗 */
+.user-menu-container:hover .dropdown-content { display: block; }
 
+.dropdown-item {
+  padding: 10px 0;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-align: center;
+}
+
+.dropdown-item:hover { 
+  background-color: var(--bg-gray); 
+  color: var(--primary-blue); 
+}
+
+.dropdown-item.logout {
+  border-top: 1px solid var(--border-color);
+  color: #ff4d4f;
+}
+.dropdown-item.logout:hover {
+  background-color: #fff1f0;
+}
+
+/* 响应式调整 */
 @media (max-width: 900px) {
-  .header {
-    padding: 0 15px;
-  }
-  .search {
-    flex: 1;
-    margin: 0 15px;
-  }
-  .logo span {
-    display: none; 
-  }
+  .header { padding: 0 15px; }
+  .search { flex: 1; margin: 0 15px; }
+  .logo span { display: none; }
 }
 
 @media (max-width: 600px) {
-  .search {
-    display: none;
-  }
+  .search { display: none; }
 }
 </style>

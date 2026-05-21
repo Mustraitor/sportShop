@@ -1,45 +1,121 @@
 <template>
   <Transition name="fade">
-    <div v-if="userStore.isLoginVisible" class="modal-overlay" @click.self="userStore.hideLogin">
+    <div 
+      v-if="userStore.isLoginVisible"
+      class="modal-overlay"
+      @click.self="userStore.hideLogin"
+    >
       <div class="login-card">
+        <!-- 关闭按钮 -->
         <button class="close-btn" @click="userStore.hideLogin">×</button>
-        
-        <div class="login-header">
-          <h2>欢迎回来</h2>
-          <p>登录以开启您的“型动”之旅</p>
+
+        <!-- === Tabs（可隐藏） === -->
+        <div v-if="showTabs" class="login-tabs">
+          <div 
+            :class="['tab', activeTab === 'account' && 'active']"
+            @click="activeTab = 'account'"
+          >
+            账号登录
+          </div>
+
+          <div 
+            :class="['tab', activeTab === 'sms' && 'active']"
+            @click="activeTab = 'sms'"
+          >
+            短信登录
+          </div>
         </div>
 
-        <form @submit.prevent="handleLogin" class="login-form">
+        <!-- 标题 -->
+        <!-- <div class="login-header">
+          <h2>欢迎回来</h2>
+          <p>登录以开启您的“型动”之旅</p>
+        </div> -->
+
+        <!-- === 账号密码登录 === -->
+        <form
+          v-if="activeTab === 'account'"
+          @submit.prevent="handleLogin"
+          class="login-form"
+        >
           <div class="input-group">
             <label>用户名</label>
-            <input 
-              v-model="loginForm.username" 
-              type="text" 
-              placeholder="请输入您的用户名" 
+            <input
+              v-model="loginForm.username"
+              type="text"
+              placeholder="请输入用户名"
               required
             />
           </div>
 
           <div class="input-group">
             <label>密码</label>
-            <input 
-              v-model="loginForm.password" 
-              type="password" 
-              placeholder="请输入密码" 
+            <input
+              v-model="loginForm.password"
+              type="password"
+              placeholder="请输入密码"
               required
             />
             <span class="forgot-pwd">忘记密码？</span>
           </div>
 
           <button type="submit" class="submit-btn" :disabled="loading">
-            <span v-if="!loading">登录</span>
-            <span v-else class="loader"></span>
+            <span>登录</span>
+            <!-- <span v-else class="loader"></span> -->
           </button>
+          <div class="login-footer">
+          还没有账号？<span class="register-link"  :class="['tab', activeTab === 'register' && 'active']"
+            @click="activeTab = 'register'">立即注册</span>
+        </div>
         </form>
 
-        <div class="login-footer">
-          还没有账号？<span class="register-link">立即注册</span>
-        </div>
+        <!-- === 短信登录（预留） === -->
+        <form
+          v-else-if="activeTab === 'sms'"
+          @submit.prevent="handleSMSLogin"
+          class="login-form"
+        >
+          <div class="input-group">
+            <label>手机号</label>
+            <input type="text" placeholder="请输入手机号" />
+          </div>
+
+          <div class="input-group">
+            <label>验证码</label>
+            <div class="sms-row">
+              <input type="text" placeholder="短信验证码" />
+              <button class="send-btn" type="button">发送</button>
+            </div>
+          </div>
+
+          <button type="submit" class="submit-btn">登录</button>
+        </form>
+        <!-- === 注册账号 === -->
+        <form
+          v-else-if="activeTab === 'register'"
+          @submit.prevent="handleRegister"
+          class="login-form"
+        >
+          <div class="input-group">
+            <label>用户名</label>
+            <input v-model="registerForm.username" type="text" placeholder="请输入用户名" />
+          </div>
+          <div class="input-group">
+            <label>密码</label>
+            <input v-model="registerForm.password" type="password" placeholder="请输入密码" />
+          </div>
+
+          <div class="input-group">
+            <label>确认密码</label>
+            <input v-model="registerForm.confirmPwd" type="password" placeholder="请再次输入密码" />
+          </div>
+
+          <button type="submit" class="submit-btn">
+            注册
+          </button>
+        </form>
+        <!-- 底部提示 -->
+
       </div>
     </div>
   </Transition>
@@ -51,173 +127,251 @@ import { useUserStore } from '@/stores/user'
 import { loginApi } from '@/api/user'
 
 const userStore = useUserStore()
+const showTabs = true
+const activeTab = ref('account')
 const loading = ref(false)
-const loginForm = reactive({ username: '', password: '' })
+/** 表单数据 */
+const loginForm = reactive({
+  username: '',
+  password: ''
+})
 
+/** 账号登录 */
 const handleLogin = async () => {
   if (loading.value) return
   loading.value = true
+
   try {
     const resData = await loginApi(loginForm)
+
     userStore.setLoginInfo(resData.token, {
       userId: resData.userId,
       userName: resData.userName
     })
+
+    loginForm.username = ''
+    loginForm.password = ''
+
     userStore.hideLogin()
   } catch (err) {
-    console.error(err)
+    console.error('登录失败:', err)
   } finally {
     loading.value = false
   }
 }
+
+/** 短信登录（预留） */
+const handleSMSLogin = async () => {
+  console.log('短信登录功能待实现')
+}
+
+const registerForm = reactive({
+  username: '',
+  phone: '',
+  code: '',
+  password: '',
+  confirmPwd: ''
+})
+
+const handleRegister = async () => {
+  // if (registerForm.password !== registerForm.confirmPwd) {
+  //   alert('两次密码输入不一致')
+  //   return
+  // }
+
+  // // 这里调用你的注册 API
+  // console.log('注册数据', registerForm)
+
+  // // 成功后切回登录
+  // activeTab.value = 'account'
+}
 </script>
 
 <style scoped>
-/* 迪卡侬风格配色 */
-:root {
-  --decathlon-blue: #0072b8;
-  --text-main: #222;
-  --text-sub: #757575;
-  --bg-gray: #f2f4f5;
+/* 淡入淡出动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
-/* 动画 */
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
-
+/* 遮罩层 */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(5px);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2000;
-  backdrop-filter: blur(4px); /* 现代化模糊感 */
+  z-index: 3000;
 }
 
+/* 登录卡片 */
 .login-card {
   background: #fff;
   width: 100%;
   max-width: 420px;
-  padding: 48px;
+  padding: 36px 40px;
+  border-radius: 22px;
   position: relative;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-  border-radius: 2px; /* 迪卡侬风格较硬，不用大圆角 */
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.12);
 }
 
+/* 关闭按钮 */
 .close-btn {
   position: absolute;
-  right: 20px;
-  top: 15px;
-  background: none;
+  top: 14px;
+  right: 16px;
+  background: transparent;
   border: none;
-  font-size: 28px;
+  font-size: 22px;
   cursor: pointer;
-  color: #ccc;
+  color: #999;
+  transition: 0.2s;
+}
+.close-btn:hover {
+  color: var(--main-blue);
 }
 
-.login-header h2 {
-  font-size: 24px;
-  color: #222;
-  margin-bottom: 8px;
-  font-weight: 800;
-  text-transform: uppercase; /* 迪卡侬特色：大写感 */
-}
-
-.login-header p {
-  font-size: 14px;
-  color: #757575;
-  margin-bottom: 32px;
-}
-
-.input-group {
-  margin-bottom: 24px;
+/* Tabs */
+.login-tabs {
   display: flex;
-  flex-direction: column;
+  justify-content: center;
+  margin-bottom: 22px;
+  gap: 20px;
 }
-
-.input-group label {
-  font-size: 12px;
-  font-weight: 700;
-  margin-bottom: 8px;
-  color: #222;
-}
-
-.input-group input {
-  padding: 12px 16px;
-  border: 1px solid #d1d1d1;
-  background: #fcfcfc;
+.tab {
+  padding: 6px 14px;
+  border-radius: 14px;
+  cursor: pointer;
   font-size: 14px;
-  transition: all 0.2s;
+  color: #666;
+  transition: 0.2s;
+}
+.tab.active {
+  background: var(--main-blue);
+  color: #fff;
 }
 
-.input-group input:focus {
-  outline: none;
-  border-color: #0072b8;
-  background: #fff;
+/* 标题区 */
+.login-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.login-header h2 {
+  margin: 0;
+  font-size: 22px;
+  color: var(--text-main);
+}
+.login-header p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--text-sub);
 }
 
+/* 输入框组 */
+.input-group {
+  margin-bottom: 18px;
+  position: relative;
+}
+label {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 6px;
+  color: var(--text-main);
+}
+input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #ddd;
+  background: var(--input-bg);
+  transition: 0.2s;
+}
+input:focus {
+  border-color: var(--main-blue);
+  box-shadow: 0 0 0 2px rgba(0, 114, 255, 0.15);
+}
+
+/* 忘记密码 */
 .forgot-pwd {
   font-size: 12px;
-  color: #0072b8;
-  text-align: right;
-  margin-top: 8px;
+  color: var(--main-blue);
+  position: absolute;
+  right: 0;
+  bottom: -20px;
   cursor: pointer;
 }
 
+/* 按钮 */
 .submit-btn {
   width: 100%;
-  padding: 14px;
-  background: #0072b8;
-  color: #fff;
+  padding: 12px 0;
+  background: var(--main-blue);
   border: none;
-  font-weight: 700;
+  border-radius: 14px;
+  color: #fff;
   font-size: 16px;
   cursor: pointer;
-  margin-top: 16px;
-  transition: background 0.2s;
+  margin-top: 8px;
+  transition: 0.2s;
 }
-
-.submit-btn:hover {
-  background: #005a91;
-}
-
 .submit-btn:disabled {
-  background: #ccc;
+  opacity: 0.7;
   cursor: not-allowed;
 }
-
-.login-footer {
-  margin-top: 32px;
-  text-align: center;
-  font-size: 13px;
-  color: #757575;
+.submit-btn:hover:not(:disabled) {
+  background: var(--main-blue-dark);
 }
 
-.register-link {
-  color: #0072b8;
-  font-weight: 700;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
-/* 简单的加载动画 */
+/* 加载动画 */
 .loader {
-  width: 20px;
-  height: 20px;
-  border: 2px solid #fff;
-  border-bottom-color: transparent;
+  width: 18px;
+  height: 18px;
+  border: 3px solid #fff;
+  border-top-color: transparent;
   border-radius: 50%;
-  display: inline-block;
-  animation: rotation 1s linear infinite;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-@keyframes rotation {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+/* 短信验证码布局 */
+.sms-row {
+  display: flex;
+  gap: 10px;
+}
+.send-btn {
+  min-width: 70px;
+  padding: 0 10px;
+  border: none;
+  background: var(--main-blue);
+  color: #fff;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.send-btn:hover {
+  background: var(--main-blue-dark);
+}
+
+/* 底部 */
+.login-footer {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-sub);
+}
+.register-link {
+  color: var(--main-blue);
+  cursor: pointer;
+  margin-left: 4px;
 }
 </style>

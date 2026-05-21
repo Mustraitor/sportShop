@@ -30,4 +30,11 @@ a {
 ul {
   list-style: none;
 }
+:root {
+  --main-blue: #2563eb;       
+  --main-blue-dark: #1e3a8a;  
+  --text-main: #222;
+  --text-sub: #666;
+  --input-bg: #f5f7fa;
+}
 </style>
