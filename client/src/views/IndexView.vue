@@ -48,6 +48,7 @@ const productItems = ref([
   <div class="page-container">
     
     <NavBar/>
+    <img src="https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/upload/3b83b0aa6ab144c59facc7b74bf33669_1.png" alt=""/>
     <!-- 2. 主体内容区域 (左侧分类留白 + 右侧轮播) -->
     <div class="main-content-wrapper">
       

@@ -22,6 +22,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/auth/login",
                         "/auth/register",
                         "/user/list",
+                        "/oss/upload-product",
                         "/error" // 建议排除 SpringBoot 默认的错误页面路径
                 );
     }

@@ -2,7 +2,6 @@ server:
   port: 8080 # 项目端口号
   servlet:
     context-path: /
-
 spring:
   application:
     name: sportShop
@@ -28,3 +27,9 @@ mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true # 自动开启驼峰命名转换（数据库 goods_name -> Java goodsName）
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 在控制台打印 SQL 语句，开发调试必看
+aliyun:
+  oss:
+    endpoint: oss-cn-beijing.aliyuncs.com
+    access-key-id: ${OSS_KEY}
+    access-key-secret: ${OSS_SECRET}
+    bucket-name: sportshop-pictures
