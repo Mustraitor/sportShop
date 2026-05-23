@@ -5,8 +5,6 @@ import org.server.common.Result;
 import org.server.entity.User;
 import org.server.service.UserService;
 import org.server.utils.JwtUtil;
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 

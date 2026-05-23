@@ -24,7 +24,6 @@ public class ProductImageController {
             @RequestParam("localPath") String localPath,
             @RequestParam(value = "sort", defaultValue = "1") Integer sort) {
 
-        // 完美的职责分离：Controller 只负责把参数丢给后台，不关心它是怎么传给阿里云或怎么存数据库的
         return productImageService.uploadAndSyncImages(productId, localPath, sort);
     }
 }

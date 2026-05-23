@@ -6,7 +6,7 @@ const userStore = useUserStore()
 
 <template>
   <router-view :key="userStore.token" />
-    <LoginDialog /> 
+  <LoginDialog /> 
 </template>
 
 <style>

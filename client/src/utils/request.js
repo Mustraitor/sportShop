@@ -1,11 +1,9 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import { useUserStore } from '@/stores/user' // 导入你的 Pinia store
-import router from '@/router' // 导入路由用于跳转
+import { useUserStore } from '@/stores/user' 
+import router from '@/router' 
 
-// 创建 axios 实例
 const service = axios.create({
-  // 建议在 .env.development 中配置 VITE_API_BASE_URL = /api
   baseURL: import.meta.env.VITE_API_BASE_URL, 
   timeout: 5000
 })
@@ -14,9 +12,8 @@ const service = axios.create({
 service.interceptors.request.use(
   config => {
     const userStore = useUserStore()
-    const token = userStore.token // 从 Pinia 拿，它是响应式的
+    const token = userStore.token 
     if (token) {
-      // 核心：加上 Bearer 前缀，注意有个空格
       config.headers.Authorization = `Bearer ${token}`
     }
     return config
@@ -31,17 +28,29 @@ service.interceptors.response.use(
     if (res.code !== 200) {
       if (res.code === 401) {
         const userStore = useUserStore()
-        userStore.clearLoginInfo() 
-        userStore.showLogin()
+        userStore.clearLoginInfo() // 清除 Pinia 缓存和 localStorage
+        userStore.showLogin()      // 弹出登录框
+        ElMessage.error('登录已过期，请重新登录')
+        return Promise.reject(res)
       }
       
       ElMessage.error(res.msg || '请求失败')
       return Promise.reject(res)
     }
+    // 保持你原有的返回结构，确保你的业务代码不会断层
     return res.data
   },
   error => {
-    // 处理网络错误或服务器 500
+    // 【新增核心】：如果后端拦截器直接抛出了标准的 HTTP 401 状态码，在这里进行捕获！
+    if (error.response && error.response.status === 401) {
+      const userStore = useUserStore()
+      userStore.clearLoginInfo() // 清除 Pinia 缓存和 localStorage
+      userStore.showLogin()      // 弹出登录框
+      ElMessage.error('登录已过期，请重新登录')
+      return Promise.reject(error)
+    }
+
+    // 处理其他网络错误或服务器 500
     const msg = error.response?.data?.msg || '网络连接异常'
     ElMessage.error(msg)
     return Promise.reject(error)

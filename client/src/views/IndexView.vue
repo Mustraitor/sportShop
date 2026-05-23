@@ -48,7 +48,7 @@ const productItems = ref([
   <div class="page-container">
     
     <NavBar/>
-    <img src="https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/upload/3b83b0aa6ab144c59facc7b74bf33669_1.png" alt=""/>
+    <!-- <img src="https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/upload/3b83b0aa6ab144c59facc7b74bf33669_1.png" alt=""/>  -->
     <!-- 2. 主体内容区域 (左侧分类留白 + 右侧轮播) -->
     <div class="main-content-wrapper">
       
@@ -108,18 +108,10 @@ const productItems = ref([
 
   </div>
   </div>
-  <div class="test">
-dasd
-  </div>
+
 </template>
 
 <style scoped>
-.test {
-  width: 50px;
-  height: 50px;
-  background-color: blue;
-  border-radius: 20%;
-}
 /* 全局容器 */
 .page-container {
   width: 100%;

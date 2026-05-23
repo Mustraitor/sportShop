@@ -33,6 +33,11 @@ const router = createRouter({
       component: () => import("../views/OrderListView.vue"),
       meta: { requiresAuth: true }
     },
+    {
+      path: "/:pathMatch(.*)*",
+      name: "NotFound",
+      component: () => import("@/views/NotFoundView.vue")
+    }
   ],
 })
 // 全局路由守卫
