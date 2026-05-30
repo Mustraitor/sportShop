@@ -12,5 +12,5 @@ public interface ProductImageService extends IService<ProductImage> {
      * @param sort 初始排序值
      * @return 统一的操作结果提示
      */
-    String uploadAndSyncImages(Long productId, String localPath, Integer sort);
+    java.util.List<String> uploadAndSyncImages(Long productId, String localPath, Integer sort);
 }
