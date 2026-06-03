@@ -1,5 +1,21 @@
 package org.server.service.impl;
 
+// 1. 框架核心及切面事务注解
+import org.server.common.exception.BusinessException;
+import org.server.entity.Category;
+import org.server.mapper.CategoryMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+// 2. MyBatis-Plus 核心及插件依赖
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+
+// 3. 项目内部实体、传输对象、持久层与视图层组件
 import org.server.dto.ProductDTO;
 import org.server.entity.Product;
 import org.server.entity.ProductImage;
@@ -10,10 +26,10 @@ import org.server.mapper.ProductSkuMapper;
 import org.server.service.ProductService;
 import org.server.vo.PageResult;
 import org.server.vo.ProductVO;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
+// 4. Java 核心工具包
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,24 +44,38 @@ public class ProductServiceImpl implements ProductService {
     @Autowired
     private ProductSkuMapper productSkuMapper;
 
+    @Autowired
+    private CategoryMapper categoryMapper;
+
+    // 统一注入 OSS 配置属性
+    @Value("${aliyun.oss.endpoint}")
+    private String endpoint;
+
+    @Value("${aliyun.oss.bucket-name}")
+    private String bucketName;
+
+    /**
+     * 辅助私有方法：构建基础 OSS 前缀，完美拼接：https://bucket.endpoint/upload/商品ID/
+     */
+    private String getOssBaseUrl(Long productId) {
+        return "https://" + bucketName + "." + endpoint + "/upload/" + productId + "/";
+    }
+
     @Override
     public PageResult<ProductVO.Simple> pageQuery(ProductDTO.Query queryDTO) {
         int pageNum = (queryDTO.getPage() == null || queryDTO.getPage() < 1) ? 1 : queryDTO.getPage();
         int size = (queryDTO.getSize() == null || queryDTO.getSize() < 1) ? 10 : queryDTO.getSize();
 
-        com.baomidou.mybatisplus.extension.plugins.pagination.Page<Product> mpPage =
-                new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>(pageNum, size);
-
-        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Product> queryWrapper =
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>();
+        Page<Product> mpPage = new Page<>(pageNum, size);
+        LambdaQueryWrapper<Product> queryWrapper = new LambdaQueryWrapper<>();
 
         queryWrapper
                 .eq(queryDTO.getCategoryId() != null, Product::getCategoryId, queryDTO.getCategoryId())
                 .eq(queryDTO.getStatus() != null, Product::getStatus, queryDTO.getStatus())
-                .like(org.springframework.util.StringUtils.hasText(queryDTO.getKeyword()), Product::getName, queryDTO.getKeyword())
+                .like(StringUtils.hasText(queryDTO.getKeyword()), Product::getName, queryDTO.getKeyword())
                 .ge(queryDTO.getMinPrice() != null, Product::getPrice, queryDTO.getMinPrice())
-                .le(queryDTO.getMaxPrice() != null, Product::getPrice, queryDTO.getMaxPrice())
-                .eq(Product::getDelFlag, 0);
+                .le(queryDTO.getMaxPrice() != null, Product::getPrice, queryDTO.getMaxPrice());
+        // ✂️ 简化：移除了 .eq(Product::getDelFlag, 0)，MyBatis-Plus 全局带入 is_deleted = 0 校验
 
         if ("price_asc".equals(queryDTO.getSort())) {
             queryWrapper.orderByAsc(Product::getPrice);
@@ -60,7 +90,12 @@ public class ProductServiceImpl implements ProductService {
         List<Product> products = mpPage.getRecords();
         List<ProductVO.Simple> voList = products.stream().map(product -> {
             ProductVO.Simple vo = new ProductVO.Simple();
-            org.springframework.beans.BeanUtils.copyProperties(product, vo);
+            BeanUtils.copyProperties(product, vo);
+
+            // 主图出库时：动态拼接出完整直链，喂给前端商品列表
+            if (StringUtils.hasText(product.getMainImage())) {
+                vo.setMainImage(getOssBaseUrl(product.getId()) + product.getMainImage());
+            }
             return vo;
         }).collect(Collectors.toList());
 
@@ -69,29 +104,39 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ProductVO.Detail getDetailById(Long id) {
+        // ✂️ 简化：基于 @TableLogic 机制，如果该商品已被逻辑删除，返回的直接就是 null
         Product product = productMapper.selectById(id);
-        if (product == null || product.getDelFlag() == 1) {
+        if (product == null) {
             return null;
         }
 
         ProductVO.Detail detailVO = new ProductVO.Detail();
-        org.springframework.beans.BeanUtils.copyProperties(product, detailVO);
+        BeanUtils.copyProperties(product, detailVO);
+
+        // 详情主图拼接
+        if (StringUtils.hasText(product.getMainImage())) {
+            detailVO.setMainImage(getOssBaseUrl(id) + product.getMainImage());
+        }
 
         List<ProductImage> images = productImageMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ProductImage>()
+                new LambdaQueryWrapper<ProductImage>()
                         .eq(ProductImage::getProductId, id)
                         .orderByAsc(ProductImage::getSort)
         );
-        List<String> imageUrls = images.stream().map(ProductImage::getUrl).collect(Collectors.toList());
+
+        // 详情副图列表出库时：循环拼装，将纯文件名转化为完整直链集合
+        List<String> imageUrls = images.stream()
+                .map(img -> getOssBaseUrl(id) + img.getUrl())
+                .collect(Collectors.toList());
         detailVO.setImages(imageUrls);
 
         List<ProductSku> skus = productSkuMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ProductSku>()
+                new LambdaQueryWrapper<ProductSku>()
                         .eq(ProductSku::getProductId, id)
         );
         List<ProductVO.Sku> skuVOs = skus.stream().map(sku -> {
             ProductVO.Sku vo = new ProductVO.Sku();
-            org.springframework.beans.BeanUtils.copyProperties(sku, vo);
+            BeanUtils.copyProperties(sku, vo);
             return vo;
         }).collect(Collectors.toList());
 
@@ -100,33 +145,49 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class)
+    @Transactional(rollbackFor = Exception.class)
     public void createProduct(ProductDTO.Create createDTO) {
+        // 🌟 核心防线：创建商品前，必须确保分类真实存在且没被删除
+        if (createDTO.getCategoryId() != null) {
+            Category category = categoryMapper.selectById(createDTO.getCategoryId());
+            if (category == null) {
+                // 抛出你量身定制的 BusinessException，指定 400 状态码
+                throw new BusinessException(400, "创建失败：所选的商品分类不存在或已被删除！");
+            }
+        }
+
+        // 1. 插入商品主表
         Product product = new Product();
-        org.springframework.beans.BeanUtils.copyProperties(createDTO, product);
-        product.setDelFlag(0);
+        BeanUtils.copyProperties(createDTO, product);
         productMapper.insert(product);
 
         Long productId = product.getId();
 
+        // 2. 插入商品副图
         List<String> images = createDTO.getImages();
         if (images != null && !images.isEmpty()) {
             int sort = 0;
             for (String url : images) {
+                // 如果这张图已经是主图了，副图列表里就跳过它，防止重复展示
+                if (StringUtils.hasText(product.getMainImage()) && url.equals(product.getMainImage())) {
+                    continue;
+                }
                 ProductImage productImage = new ProductImage();
                 productImage.setProductId(productId);
                 productImage.setUrl(url);
-                productImage.setSort(sort++);
+                productImage.setSort(sort++); // 🌟 补上副图顺序，防图片乱序
                 productImageMapper.insert(productImage);
             }
         }
 
+        // 3. 插入商品 SKU 列表
         List<ProductDTO.SkuCreate> skus = createDTO.getSkus();
         if (skus != null && !skus.isEmpty()) {
             for (ProductDTO.SkuCreate skuDTO : skus) {
                 ProductSku productSku = new ProductSku();
-                org.springframework.beans.BeanUtils.copyProperties(skuDTO, productSku);
+                BeanUtils.copyProperties(skuDTO, productSku);
                 productSku.setProductId(productId);
+                // 生成企业级高并发不重复的唯一标识 SKU 编码
                 productSku.setSkuCode("SKU_" + productId + "_" + System.currentTimeMillis() + (int)(Math.random()*900+100));
                 productSkuMapper.insert(productSku);
             }
@@ -134,25 +195,32 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class) // 强事务保证
+    @Transactional(rollbackFor = Exception.class)
     public void updateProduct(Long id, ProductDTO.Update updateDTO) {
+        if (updateDTO.getCategoryId() != null) {
+            Category category = categoryMapper.selectById(updateDTO.getCategoryId());
+            if (category == null) {
+                // 抛出运行时异常，触发事务自动回滚，并被 GlobalExceptionHandler 捕获
+                throw new BusinessException(400, "修改失败：所选的商品分类不存在或已被删除！");
+            }
+        }
         // 1. 更新商品主表
         Product product = new Product();
-        org.springframework.beans.BeanUtils.copyProperties(updateDTO, product);
-        product.setId(id); // 锁死要更新的 19 位商品 ID
+        BeanUtils.copyProperties(updateDTO, product);
+        product.setId(id);
         productMapper.updateById(product);
 
         // 2. 清空并重建商品副图
-        // 2.1 物理删除老图片
         productImageMapper.delete(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ProductImage>()
-                        .eq(ProductImage::getProductId, id)
+                new LambdaQueryWrapper<ProductImage>().eq(ProductImage::getProductId, id)
         );
-        // 2.2 批量插入新图片
         List<String> images = updateDTO.getImages();
         if (images != null && !images.isEmpty()) {
             int sort = 0;
             for (String url : images) {
+                if (StringUtils.hasText(updateDTO.getMainImage()) && url.equals(updateDTO.getMainImage())) {
+                    continue;
+                }
                 ProductImage productImage = new ProductImage();
                 productImage.setProductId(id);
                 productImage.setUrl(url);
@@ -161,35 +229,49 @@ public class ProductServiceImpl implements ProductService {
             }
         }
 
-        // 3. 清空并重建商品 SKU
-        // 3.1 物理删除老 SKU
-        productSkuMapper.delete(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ProductSku>()
-                        .eq(ProductSku::getProductId, id)
+        // 3. 智能双向差集更新 SKU
+        List<ProductSku> dbOldSkus = productSkuMapper.selectList(
+                new LambdaQueryWrapper<ProductSku>().eq(ProductSku::getProductId, id)
         );
-        // 3.2 批量插入新 SKU
-        List<ProductDTO.SkuCreate> skus = updateDTO.getSkus();
-        if (skus != null && !skus.isEmpty()) {
-            for (ProductDTO.SkuCreate skuDTO : skus) {
-                ProductSku productSku = new ProductSku();
-                org.springframework.beans.BeanUtils.copyProperties(skuDTO, productSku);
-                productSku.setProductId(id);
-                productSku.setSkuCode("SKU_" + id + "_" + System.currentTimeMillis() + (int)(Math.random()*900+100));
-                productSkuMapper.insert(productSku);
+
+        List<ProductDTO.SkuUpdate> incomingSkus = updateDTO.getSkus();
+
+        if (incomingSkus != null && !incomingSkus.isEmpty()) {
+
+            List<Long> incomingIds = incomingSkus.stream()
+                    .map(ProductDTO.SkuUpdate::getId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+
+            List<ProductSku> skusToDelete = dbOldSkus.stream()
+                    .filter(oldSku -> !incomingIds.contains(oldSku.getId()))
+                    .collect(Collectors.toList());
+
+            for (ProductSku sku : skusToDelete) {
+                productSkuMapper.deleteById(sku.getId());
+            }
+
+            for (ProductDTO.SkuUpdate skuDTO : incomingSkus) {
+                if (skuDTO.getId() != null) {
+                    ProductSku updateSku = new ProductSku();
+                    BeanUtils.copyProperties(skuDTO, updateSku);
+                    productSkuMapper.updateById(updateSku);
+                } else {
+                    ProductSku newSku = new ProductSku();
+                    BeanUtils.copyProperties(skuDTO, newSku);
+                    newSku.setProductId(id);
+                    newSku.setSkuCode("SKU_" + id + "_" + System.currentTimeMillis() + (int)(Math.random() * 900 + 100));
+                    productSkuMapper.insert(newSku);
+                }
             }
         }
     }
 
-    // 在 ProductServiceImpl 类中追加实现：
-
     @Override
-    @org.springframework.transaction.annotation.Transactional(rollbackFor = Exception.class) // 涉及状态修改，建议带上事务
+    @Transactional(rollbackFor = Exception.class)
     public void deleteProductById(Long id) {
-        // 使用 LambdaUpdateWrapper 快速执行：UPDATE product SET del_flag = 1 WHERE id = {id}
-        productMapper.update(null,
-                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Product>()
-                        .eq(Product::getId, id)
-                        .set(Product::getDelFlag, 1)
-        );
+        // 🌟 终极简化：有了 @TableLogic 注解，直接调用原生的 deleteById
+        // MyBatis-Plus 在底层会自动把它转化成 UPDATE product SET is_deleted = 1 WHERE id = ?
+        productMapper.deleteById(id);
     }
 }

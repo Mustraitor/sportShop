@@ -2,21 +2,14 @@ package org.server.service.impl;
 
 import com.aliyun.oss.OSS;
 import com.aliyun.oss.OSSClientBuilder;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.baomidou.mybatisplus.extension.toolkit.SqlHelper;
-import org.server.entity.Product;
 import org.server.entity.ProductImage;
 import org.server.mapper.ProductImageMapper;
-import org.server.mapper.ProductMapper;
 import org.server.service.ProductImageService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -36,14 +29,11 @@ public class ProductImageServiceImpl extends ServiceImpl<ProductImageMapper, Pro
     @Value("${aliyun.oss.access-key-secret}")
     private String accessKeySecret;
 
-    @Autowired
-    private ProductMapper productMapper;
-
+    // 依然保持严格的文件名拦截，确保进 OSS 的数据名称是干净、规范的
     private static final Pattern STRICT_IMAGE_PATTERN =
             Pattern.compile("^\\d+_(main|\\d+)\\.(png|jpg|jpeg|gif|webp)$", Pattern.CASE_INSENSITIVE);
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public List<String> uploadAndSyncImages(Long productId, String localPath, Integer sort) {
         if (localPath != null) {
             localPath = localPath.replace("\"", "").replace("'", "");
@@ -55,6 +45,7 @@ public class ProductImageServiceImpl extends ServiceImpl<ProductImageMapper, Pro
         }
 
         List<String> uploadedUrls = new ArrayList<>();
+        // 初始化阿里云 OSS 客户端
         OSS ossClient = new OSSClientBuilder().build(endpoint, accessKeyId, accessKeySecret);
 
         try {
@@ -67,15 +58,14 @@ public class ProductImageServiceImpl extends ServiceImpl<ProductImageMapper, Pro
                 for (File file : files) {
                     if (file.isFile()) {
                         String fileName = file.getName();
+                        // 1. 安全过滤
                         if (!STRICT_IMAGE_PATTERN.matcher(fileName).matches()) {
-                            System.out.println("【命名非法拦截】文件 [" + fileName + "] 不符合规范，已被安全忽略。");
+                            System.out.println("【命名非法拦截】文件 [" + fileName + "] 不符合规范，已被忽略。");
                             continue;
                         }
 
-                        Long finalProductId = parseProductIdFromFilename(fileName, productId);
-                        Integer finalSort = fileName.toLowerCase().contains("main") ? 0 : sort;
-
-                        String finalOssUrl = uploadSingleFileToOssAndDb(ossClient, file, finalProductId, finalSort);
+                        // 2. 纯粹的文件上云传输
+                        String finalOssUrl = uploadSingleFileToOssOnly(ossClient, file, productId);
                         uploadedUrls.add(finalOssUrl);
                     }
                 }
@@ -83,65 +73,37 @@ public class ProductImageServiceImpl extends ServiceImpl<ProductImageMapper, Pro
                 if (!STRICT_IMAGE_PATTERN.matcher(targetFile.getName()).matches()) {
                     throw new RuntimeException("独立上传失败：单张图片的文件名 [" + targetFile.getName() + "] 不符合规范！");
                 }
-                String finalOssUrl = uploadSingleFileToOssAndDb(ossClient, targetFile, productId, sort);
+                String finalOssUrl = uploadSingleFileToOssOnly(ossClient, targetFile, productId);
                 uploadedUrls.add(finalOssUrl);
             }
             return uploadedUrls;
         } finally {
+            // 确保无论如何都会关闭 OSS 客户端释放连接
             if (ossClient != null) {
                 ossClient.shutdown();
             }
         }
     }
 
-    private String uploadSingleFileToOssAndDb(OSS ossClient, File file, Long productId, Integer sort) {
+    /**
+     * 👑 纯净的 OSS 资源上传方法：无数据库依赖、零脏数据风险
+     */
+    private String uploadSingleFileToOssOnly(OSS ossClient, File file, Long productId) {
+        // 1. 拿到纯粹的文件名（如: 10001_main.png）
         String originalName = file.getName();
-        String ossFileName = "upload/" + productId + "/" + originalName;
+
+        // 2. 云端 OSS 保持清晰的 upload/商品ID/ 目录划分（如果你的初始图片名自带ID，直接使用传入的 productId 即可）
+        String ossFileName = "upload/" + originalName;
+
+        // 3. 拼接出返回给前端或 Postman 格式的完整直链（完美对应你的第三张截图期望值）
         String finalOssUrl = "https://" + bucketName + "." + endpoint + "/" + ossFileName;
 
-        // 1. 推送文件覆盖OSS云端资源
+        // 4. 将纯文件流推送到阿里云 OSS
         ossClient.putObject(bucketName, ossFileName, file);
-        System.out.println("【OSS 云端覆盖】成功: " + ossFileName);
+        System.out.println("【纯文件上云】推送成功: " + ossFileName);
 
-        // 2. 幂等维护副图表数据
-        ProductImage existingImage = this.lambdaQuery()
-                .eq(ProductImage::getProductId, productId)
-                .eq(ProductImage::getUrl, finalOssUrl)
-                .one();
-
-        if (existingImage != null) {
-            existingImage.setSort(sort);
-            existingImage.setCreatedAt(LocalDateTime.now());
-            this.updateById(existingImage);
-            System.out.println("【副图表同步】更新成功");
-        } else {
-            ProductImage productImage = new ProductImage();
-            productImage.setProductId(productId);
-            productImage.setUrl(finalOssUrl);
-            productImage.setSort(sort);
-            productImage.setCreatedAt(LocalDateTime.now());
-            this.save(productImage);
-            System.out.println("【副图表同步】新增成功");
-        }
-
-        // 3. 联动更新商品主表主图链接
-        if (sort == 0) {
-            LambdaUpdateWrapper<Product> updateWrapper = new LambdaUpdateWrapper<>();
-            updateWrapper.eq(Product::getId, productId).set(Product::getMainImage, finalOssUrl);
-
-            boolean updateProductMainImageSuccess = SqlHelper.retBool(productMapper.update(null, updateWrapper));
-
-            if (updateProductMainImageSuccess) {
-                System.out.println("【主表联动】更新商品主图链接成功");
-            } else {
-                System.out.println("【主表联动】未找到对应商品ID，主图链接未更新");
-            }
-        }
+        // 5. 👑 彻底移除所有数据库逻辑（不调 mapper，不 save，不 update）
 
         return finalOssUrl;
-    }
-
-    private Long parseProductIdFromFilename(String fileName, Long defaultId) {
-        return Long.parseLong(fileName.split("_")[0]);
     }
 }

@@ -2,6 +2,7 @@ package org.server.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableLogic;
 import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -23,7 +24,8 @@ public class Product {
 
     private Integer status; // TINYINT 对应 Java 的 Integer
 
-    private Integer delFlag; // 对应数据库的 del_flag，逻辑删除标识
+    @TableLogic
+    private Integer isDeleted; // 对应数据库的 is_deleted，逻辑删除标识
 
     private Integer stock;
 

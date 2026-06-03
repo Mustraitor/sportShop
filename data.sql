@@ -32,10 +32,10 @@ INSERT INTO product (id, category_id, name, description, main_image, price, stoc
 -- ==========================================
 -- 5. 商品库存明细表 (product_sku) 
 -- ==========================================
-INSERT INTO product_sku (id, product_id, sku_name, price, stock, sku_code, created_at) VALUES 
-(1, 10001, '黑白基础色-42码', 699.00, 100, 'NK-AP39-BLK-42', NOW()),
-(2, 10001, '黑白基础色-43码', 699.00, 80, 'NK-AP39-BLK-43', NOW()),
-(3, 10002, '冰雪蓝-42.5码', 899.00, 50, 'ADI-TY1-BLU-425', NOW());
+INSERT INTO product_sku (product_id, sku_name, price, stock, sku_code, created_at, is_deleted) VALUES 
+(10001, '黑白基础色-42码', 699.00, 100, 'NK-AP39-BLK-42', NOW(), 0),
+(10001, '黑白基础色-43码', 699.00, 80, 'NK-AP39-BLK-43', NOW(), 0),
+(10002, '冰雪蓝-42.5码', 899.00, 50, 'ADI-TY1-BLU-425', NOW(), 0);
 
 -- ==========================================
 -- 6. 商品图片副表 (product_image)
@@ -47,9 +47,9 @@ INSERT INTO product_image (product_id, url, sort, created_at) VALUES
 -- ==========================================
 -- 7. 购物车 (cart)
 -- ==========================================
-INSERT INTO cart (id, user_id, product_id, sku_id, quantity, checked, created_at) VALUES 
-(1, 3, 10001, 1, 1, 1, NOW()),         
-(2, 4, 10001, 1, 2, 0, NOW());         
+INSERT INTO cart (user_id, product_id, sku_id, quantity, checked, created_at) VALUES 
+(3, 10001, 1, 1, 1, NOW()),         
+(4, 10001, 1, 2, 0, NOW());         
 
 -- ==========================================
 -- 8. 订单主表 (orders)
