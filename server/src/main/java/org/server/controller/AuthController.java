@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.server.common.Result;
 import org.server.dto.UserDTO;
 import org.server.entity.User;
+import org.server.service.CartService;
 import org.server.service.UserService;
 import org.server.utils.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,21 +19,34 @@ public class AuthController {
 
     @Autowired
     private UserService userService;
+    @Autowired
+    private CartService cartService;
 
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody Map<String, String> body) {
+
         String username = body.get("username");
         String password = body.get("password");
 
-        User loginUser = userService.login(username, password);
-        String token = JwtUtil.generateToken(loginUser.getUserId(), loginUser.getUserName());
+        // ⭐ 新增：接收 guestId
+        String guestId = body.get("guestId");
 
-        // 准备返回给前端的数据
+        // 1️⃣ 登录
+        User loginUser = userService.login(username, password);
+
+        // 2️⃣ 生成 token
+        String token = JwtUtil.generateToken(
+                loginUser.getUserId(),
+                loginUser.getUserName()
+        );
+
+        // ⭐ 3️⃣ 登录成功后合并购物车（关键！！！）
+        cartService.mergeCartAfterLogin(loginUser.getUserId(), guestId);
+
+        // 4️⃣ 返回数据
         Map<String, Object> data = new HashMap<>();
         data.put("userId", loginUser.getUserId());
         data.put("userName", loginUser.getUserName());
-
-        // 把 Token 给前端，前端会把它存入 localStorage
         data.put("token", token);
 
         return Result.success(data);
