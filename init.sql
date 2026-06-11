@@ -215,7 +215,7 @@ CREATE TABLE orders (
   total_amount DECIMAL(10,2),
   pay_amount DECIMAL(10,2),
   status TINYINT DEFAULT 0,
-  payment_type TINYINT,
+  -- payment_type TINYINT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES sys_user(user_id),
@@ -292,3 +292,34 @@ CREATE TABLE promotion (
   FOREIGN KEY (product_id) REFERENCES product(id),
   FOREIGN KEY (sku_id) REFERENCES product_sku(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE sys_user ADD COLUMN balance DECIMAL(10, 2) DEFAULT 100000.00 COMMENT '用户余额';
+
+
+-- -- 会员等级
+-- DROP TABLE IF EXISTS member_level;
+-- CREATE TABLE member_level (
+--   id BIGINT PRIMARY KEY AUTO_INCREMENT,
+--   name VARCHAR(50) NOT NULL,
+--   description VARCHAR(200),
+--   growth_point INT DEFAULT 0,
+--   discount INT DEFAULT 100,
+--   free_freight_point INT DEFAULT 0,
+--   comment_growth_point INT DEFAULT 0,
+--   priviledge_free_freight TINYINT DEFAULT 0,
+--   priviledge_sign_in TINYINT DEFAULT 0,
+--   priviledge_comment TINYINT DEFAULT 0,
+--   priviledge_promotion TINYINT DEFAULT 0,
+--   priviledge_member_price TINYINT DEFAULT 0,
+--   priviledge_birthday TINYINT DEFAULT 0,
+--   status TINYINT DEFAULT 1,
+--   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+--   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- INSERT INTO member_level (name, description, growth_point, discount, free_freight_point, comment_growth_point,
+--   priviledge_free_freight, priviledge_sign_in, priviledge_comment, priviledge_promotion, priviledge_member_price, priviledge_birthday, status) VALUES
+-- ('普通会员', '初级会员', 0, 100, 199, 5, 0, 1, 1, 0, 0, 0, 1),
+-- ('银卡会员', '中级会员', 1000, 95, 99, 10, 0, 1, 1, 1, 0, 0, 1),
+-- ('金卡会员', '高级会员', 5000, 90, 0, 15, 1, 1, 1, 1, 1, 0, 1),
+-- ('钻石会员', '尊贵会员', 15000, 85, 0, 20, 1, 1, 1, 1, 1, 1, 1);

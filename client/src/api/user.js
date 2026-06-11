@@ -22,3 +22,17 @@ export function getUserList() {
     method: 'get'
   })
 }
+
+export function getAuthInfoApi() {
+  return request({
+    url: '/user/info',
+    method: 'get'
+  })
+}
+export const registerApi = (data) => {
+  return request({
+    url: '/auth/register',
+    method: 'post',
+    data
+  })
+}

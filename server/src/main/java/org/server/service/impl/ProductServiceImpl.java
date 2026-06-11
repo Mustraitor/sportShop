@@ -58,7 +58,7 @@ public class ProductServiceImpl implements ProductService {
      * 辅助私有方法：构建基础 OSS 前缀，完美拼接：https://bucket.endpoint/upload/商品ID/
      */
     private String getOssBaseUrl(Long productId) {
-        return "https://" + bucketName + "." + endpoint + "/upload/" + productId + "/";
+        return "https://" + bucketName + "." + endpoint  + "/upload/";
     }
 
     @Override
@@ -75,7 +75,6 @@ public class ProductServiceImpl implements ProductService {
                 .like(StringUtils.hasText(queryDTO.getKeyword()), Product::getName, queryDTO.getKeyword())
                 .ge(queryDTO.getMinPrice() != null, Product::getPrice, queryDTO.getMinPrice())
                 .le(queryDTO.getMaxPrice() != null, Product::getPrice, queryDTO.getMaxPrice());
-        // ✂️ 简化：移除了 .eq(Product::getDelFlag, 0)，MyBatis-Plus 全局带入 is_deleted = 0 校验
 
         if ("price_asc".equals(queryDTO.getSort())) {
             queryWrapper.orderByAsc(Product::getPrice);

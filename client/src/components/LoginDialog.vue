@@ -1,3 +1,103 @@
+<script setup>
+import { ref, reactive } from 'vue'
+import { useUserStore } from '@/stores/user'
+import { loginApi, registerApi } from '@/api/user'   // 导入 loginApi 和 registerApi
+const userStore = useUserStore()
+const showTabs = true
+const activeTab = ref('account')
+const loading = ref(false)
+/** 表单数据 */
+const loginForm = reactive({
+  username: '',
+  password: ''
+})
+
+/** 账号登录 */
+const handleLogin = async () => {
+  if (loading.value) return
+  loading.value = true
+
+  try {
+    let guestIdToMerge = null
+    const storeStr = localStorage.getItem('user-store')
+    if (storeStr) {
+      try {
+        const storeObj = JSON.parse(storeStr)
+        guestIdToMerge = storeObj.guestId 
+      } catch (e) {
+        console.error('解析 user-store 失败', e)
+      }
+    }
+
+    const resData = await loginApi({
+      username: loginForm.username,
+      password: loginForm.password,
+      guestId: guestIdToMerge // 这里传给后端，后端就能正确合并了
+    })
+
+    // 登录成功后，调用 Store 的逻辑进行状态清理
+    userStore.setLoginInfo(resData.token, {
+      userId: resData.userId,
+      userName: resData.userName
+    })
+
+    loginForm.username = ''
+    loginForm.password = ''
+  } catch (err) {
+    console.error('登录失败:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+/** 短信登录（预留） */
+const handleSMSLogin = async () => {
+  console.log('短信登录功能待实现')
+}
+
+const registerForm = reactive({
+  username: '',
+  phone: '',
+  code: '',
+  password: '',
+  confirmPwd: ''
+})
+
+const handleRegister = async () => {
+  // 前端校验（保持不变）
+  if (!registerForm.username || !registerForm.password) {
+    alert('请填写完整信息')
+    return
+  }
+  if (registerForm.password !== registerForm.confirmPwd) {
+    alert('两次密码输入不一致')
+    return
+  }
+  if (registerForm.password.length < 6) {
+    alert('密码长度至少6位')
+    return
+  }
+
+  try {
+    // 调用注册 API - 增加 confirmPassword 字段
+    await registerApi({
+      username: registerForm.username,
+      password: registerForm.password,
+      confirmPassword: registerForm.confirmPwd   
+    })
+    alert('注册成功，请登录')
+    // 清空表单
+    registerForm.username = ''
+    registerForm.password = ''
+    registerForm.confirmPwd = ''
+    // 切换回登录页
+    activeTab.value = 'account'
+  } catch (err) {
+    console.error('注册失败:', err)
+    alert(err.response?.data?.msg || '注册失败，请稍后重试')
+  }
+}
+</script>
 <template>
   <Transition name="fade">
     <div 
@@ -121,71 +221,7 @@
   </Transition>
 </template>
 
-<script setup>
-import { ref, reactive } from 'vue'
-import { useUserStore } from '@/stores/user'
-import { loginApi } from '@/api/user'
 
-const userStore = useUserStore()
-const showTabs = true
-const activeTab = ref('account')
-const loading = ref(false)
-/** 表单数据 */
-const loginForm = reactive({
-  username: '',
-  password: ''
-})
-
-/** 账号登录 */
-const handleLogin = async () => {
-  if (loading.value) return
-  loading.value = true
-
-  try {
-    const resData = await loginApi(loginForm)
-
-    userStore.setLoginInfo(resData.token, {
-      userId: resData.userId,
-      userName: resData.userName
-    })
-
-    loginForm.username = ''
-    loginForm.password = ''
-
-    userStore.hideLogin()
-  } catch (err) {
-    console.error('登录失败:', err)
-  } finally {
-    loading.value = false
-  }
-}
-
-/** 短信登录（预留） */
-const handleSMSLogin = async () => {
-  console.log('短信登录功能待实现')
-}
-
-const registerForm = reactive({
-  username: '',
-  phone: '',
-  code: '',
-  password: '',
-  confirmPwd: ''
-})
-
-const handleRegister = async () => {
-  // if (registerForm.password !== registerForm.confirmPwd) {
-  //   alert('两次密码输入不一致')
-  //   return
-  // }
-
-  // // 这里调用你的注册 API
-  // console.log('注册数据', registerForm)
-
-  // // 成功后切回登录
-  // activeTab.value = 'account'
-}
-</script>
 
 <style scoped>
 /* 淡入淡出动画 */

@@ -1,6 +1,303 @@
+<script setup>
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { getProductDetail } from '@/api/product'
+import { cartApi } from '@/api/cart'
+import { useUserStore } from '@/stores/user'
+
+// 💡 优化 1：引入智能图片路由工具与默认占位图
+import { optimizeImage, defaultPlaceholder } from '@/utils/image'
+
+const props = defineProps({
+  id: {
+    type: [String, Number],
+    required: true
+  }
+})
+
+// ---------- 全局状态定义 ----------
+const userStore = useUserStore()
+
+// ---------- 响应式数据 (Refs) ----------
+const loading = ref(true)
+const loadError = ref(false)
+const currentImageIndex = ref(0)
+const selectedSkuId = ref(null)
+const quantity = ref(1)
+
+// 购物车角标数量直接联动 Pinia 状态机，实现全局实时同步
+const cartCount = computed(() => userStore.cartCount)
+
+const showImageZoom = ref(false)
+const showReviewImageModal = ref(false)
+const currentReviewImage = ref('')
+const activeFilter = ref('all')
+
+const product = ref({
+  id: null,
+  name: '',
+  description: '',
+  price: 0,
+  stock: 0,
+  status: 1,
+  mainImage: '',
+  images: [],
+  skus: [],
+  rating: 4.5,
+  reviewCount: 245
+})
+
+// 模拟评价数据原样保留
+const reviews = ref([
+  {
+    id: 1,
+    userName: '跑步爱好者',
+    date: '2023-10-15',
+    rating: 5,
+    content: '鞋子非常轻便，透气性很好，跑了10公里脚也不觉得闷。缓震效果也不错，对膝盖友好。',
+    images: ['https://images.unsplash.com/photo-1542291026-7eec264c27ff?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80']
+  },
+  { id: 2, userName: '运动新手', date: '2023-10-10', rating: 4, content: '外观很时尚，穿着舒适。尺码标准，按平时尺码购买即可。唯一不足是白色不太耐脏。', images: [] },
+  {
+    id: 3,
+    userName: '健身达人',
+    date: '2023-10-05',
+    rating: 5,
+    content: '性价比很高的一款跑鞋，无论是跑步还是日常穿着都很舒适。已经推荐给朋友了。',
+    images: [
+      'https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
+      'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80'
+    ]
+  },
+  { id: 4, userName: '马拉松选手', date: '2023-09-28', rating: 4, content: '作为训练鞋很合适，轻量化的设计让长距离训练更轻松。不过对于专业比赛来说，缓冲可能稍显不足。', images: [] },
+  { id: 5, userName: '日常通勤者', date: '2023-09-20', rating: 5, content: '不仅适合运动，日常穿搭也很棒。很百搭，舒适度可以穿一整天。', images: [] }
+])
+
+const reviewFilters = ref([
+  { label: '全部', value: 'all', count: 245 },
+  { label: '好评', value: 'good', count: 210 },
+  { label: '中评', value: 'medium', count: 25 },
+  { label: '差评', value: 'bad', count: 10 },
+  { label: '有图', value: 'hasImage', count: 89 }
+])
+
+// ---------- 计算属性 (Computed) ----------
+
+/**
+ * 💡 优化 2：画廊图片集计算属性重构
+ * 提取主图及副图时，直接通过 optimizeImage 处理成目标路由地址（宽度传 800 以保证大图清晰度）
+ */
+const galleryImages = computed(() => {
+  const imgs = []
+  
+  // 处理主图
+  if (product.value.mainImage) {
+    imgs.push(optimizeImage(product.value.mainImage, 800))
+  }
+  
+  // 处理副图组
+  ;(product.value.images || []).forEach(img => {
+    if (img) {
+      const routedImg = optimizeImage(img, 800)
+      if (!imgs.includes(routedImg)) imgs.push(routedImg)
+    }
+  })
+  
+  return imgs.length ? imgs : [defaultPlaceholder]
+})
+
+const currentImage = computed(() => galleryImages.value[currentImageIndex.value] || defaultPlaceholder)
+
+const selectedSku = computed(() => {
+  if (!selectedSkuId.value || !product.value.skus?.length) return null
+  return product.value.skus.find(s => s.id === selectedSkuId.value) || null
+})
+
+const displayPrice = computed(() => {
+  const price = selectedSku.value?.price ?? product.value.price
+  return Number(price) || 0
+})
+
+const displayStock = computed(() => selectedSku.value ? selectedSku.value.stock : (product.value.stock || 0))
+
+const maxQuantity = computed(() => Math.min(displayStock.value, 99))
+
+const isOffShelf = computed(() => product.value.status === 0)
+
+const canPurchase = computed(() => !isOffShelf.value && displayStock.value > 0)
+
+const filteredReviews = computed(() => {
+  const list = reviews.value
+  if (activeFilter.value === 'good') return list.filter(r => r.rating >= 4).slice(0, 3)
+  if (activeFilter.value === 'medium') return list.filter(r => r.rating === 3).slice(0, 3)
+  if (activeFilter.value === 'bad') return list.filter(r => r.rating <= 2).slice(0, 3)
+  if (activeFilter.value === 'hasImage') return list.filter(r => r.images && r.images.length > 0).slice(0, 3)
+  return list.slice(0, 3)
+})
+
+// ---------- 异步业务方法 (Arrow Functions) ----------
+
+// 1. 获取商品详情
+const fetchProduct = async () => {
+  loading.value = true
+  loadError.value = false
+  currentImageIndex.value = 0
+  quantity.value = 1
+  try {
+    const data = await getProductDetail(props.id)
+    if (!data) {
+      loadError.value = true
+      return
+    }
+    
+    // 💡 优化 3：确保副图字段类型安全，若为字符串则切为数组
+    let sanitizedImages = data.images
+    if (typeof sanitizedImages === 'string') {
+      try {
+        sanitizedImages = JSON.parse(sanitizedImages)
+      } catch (err) {
+        sanitizedImages = sanitizedImages.split(',').filter(Boolean)
+      }
+    }
+
+    product.value = {
+      ...data,
+      images: Array.isArray(sanitizedImages) ? sanitizedImages : [],
+      rating: 4.5,
+      reviewCount: 245
+    }
+    if (data.skus?.length) {
+      const firstAvailable = data.skus.find(s => s.stock > 0) || data.skus[0]
+      selectedSkuId.value = firstAvailable?.id ?? null
+    } else {
+      selectedSkuId.value = null
+    }
+  } catch (e) {
+    loadError.value = true
+  } finally {
+    loading.value = false
+  }
+}
+
+// 2. 获取并更新全局购物车数量
+const fetchCartCount = async () => {
+  try {
+    userStore.initGuestId()
+    const res = await cartApi.getCartList()
+    const total = res?.total || res?.data?.total || 0
+    userStore.updateCartCount(total)
+  } catch (err) {
+    console.error('获取购物车数量失败', err)
+  }
+}
+
+// 3. 加入购物车
+const addToCart = async () => {
+  if (!canPurchase.value) {
+    alert(isOffShelf.value ? '商品已下架' : '商品已缺货')
+    return
+  }
+  if (!selectedSkuId.value) {
+    alert('请选择规格')
+    return
+  }
+
+  const payload = {
+    productId: product.value.id,
+    skuId: selectedSkuId.value,
+    quantity: quantity.value
+  }
+
+  try {
+    await cartApi.addToCart(payload)
+    await fetchCartCount() 
+    alert(`已成功添加 ${quantity.value} 件商品到购物车`)
+  } catch (err) {
+    alert(err?.response?.data?.msg || '添加失败')
+  }
+}
+
+// ---------- 页面交互方法 (Arrow Functions) ----------
+const changeImage = (index) => {
+  currentImageIndex.value = index
+}
+
+const selectSku = (sku) => {
+  if (!sku || isSkuDisabled(sku)) return
+  selectedSkuId.value = sku.id
+  if (quantity.value > sku.stock) {
+    quantity.value = Math.max(1, sku.stock)
+  }
+}
+
+const isSkuDisabled = (sku) => !sku || sku.stock <= 0
+
+const increaseQuantity = () => {
+  if (quantity.value < maxQuantity.value) quantity.value++
+}
+
+const decreaseQuantity = () => {
+  if (quantity.value > 1) quantity.value--
+}
+
+const validateQuantity = () => {
+  if (quantity.value < 1) {
+    quantity.value = 1
+  } else if (quantity.value > maxQuantity.value) {
+    quantity.value = maxQuantity.value
+  }
+}
+
+const buyNow = () => {
+  if (!canPurchase.value) {
+    alert(isOffShelf.value ? '商品已下架' : '商品已缺货')
+    return
+  }
+  alert(`立即购买 ${quantity.value} 件商品，正在跳转到订单结算页面...`)
+}
+
+const formatDate = (dateString) => {
+  const date = new Date(dateString)
+  return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
+}
+
+const changeFilter = (filterValue) => {
+  activeFilter.value = filterValue
+}
+
+const showReviewImage = (img) => {
+  currentReviewImage.value = img
+  showReviewImageModal.value = true
+}
+
+const showAllReviews = () => {
+  alert('正在加载并显示全部历史评价')
+}
+
+// 💡 优化 4：图片裂开的处理函数升级为默认占位图地址
+const onImgError = (e) => {
+  e.target.onerror = null
+  e.target.src = defaultPlaceholder
+}
+
+// ---------- 生命周期与监听器 ----------
+watch(() => props.id, () => {
+  fetchProduct()
+}, { immediate: true })
+
+onMounted(() => {
+  fetchCartCount()
+})
+</script>
+
 <template>
-  <div class="product-detail">
-    <!-- 顶部导航 -->
+  <div class="product-detail" v-loading="loading">
+    <div v-if="loadError" class="load-error">
+      <p>商品不存在或已下架</p>
+      <router-link to="/" class="back-link">返回首页</router-link>
+    </div>
+
+    <template v-else-if="!loading && product.id">
     <div class="top-nav">
       <div class="nav-left">
         <router-link to="/" class="back-link">
@@ -16,25 +313,23 @@
       </div>
     </div>
 
-    <!-- 商品主图与缩略图 -->
     <div class="product-gallery">
       <div class="main-image">
-        <img :src="currentImage" :alt="product.name" @click="showImageZoom = true" />
+        <img :src="currentImage" :alt="product.name" @click="showImageZoom = true" @error="onImgError" />
       </div>
-      <div class="thumbnail-list">
+      <div class="thumbnail-list" v-if="galleryImages.length > 1">
         <div
-            v-for="(img, index) in product.images"
+            v-for="(img, index) in galleryImages"
             :key="index"
             class="thumbnail-item"
             :class="{ active: currentImageIndex === index }"
             @click="changeImage(index)"
         >
-          <img :src="img" :alt="'商品图片' + (index+1)" />
+          <img :src="img" :alt="'商品图片' + (index+1)" @error="onImgError" />
         </div>
       </div>
     </div>
 
-    <!-- 商品信息 -->
     <div class="product-info">
       <div class="product-header">
         <h2 class="product-name">{{ product.name }}</h2>
@@ -48,50 +343,43 @@
       </div>
 
       <div class="product-price">
-        <span class="current-price">¥{{ product.currentPrice.toFixed(2) }}</span>
-        <span v-if="product.originalPrice" class="original-price">¥{{ product.originalPrice.toFixed(2) }}</span>
-        <span v-if="product.discount" class="discount-tag">{{ product.discount }}折</span>
+        <span class="current-price">¥{{ displayPrice.toFixed(2) }}</span>
+        <span v-if="isOffShelf" class="off-shelf-tag">已下架</span>
       </div>
 
       <div class="product-specs">
         <div class="spec-item">
           <span class="spec-label">商品编号：</span>
-          <span class="spec-value">{{ product.sku }}</span>
-        </div>
-        <div class="spec-item">
-          <span class="spec-label">品牌：</span>
-          <span class="spec-value">{{ product.brand }}</span>
+          <span class="spec-value">{{ product.id }}</span>
         </div>
         <div class="spec-item">
           <span class="spec-label">库存：</span>
-          <span class="spec-value" :class="{ low: product.stock < 10 }">
-            {{ product.stock > 0 ? `有货(${product.stock}件)` : '缺货' }}
+          <span class="spec-value" :class="{ low: displayStock < 10 }">
+            {{ displayStock > 0 ? `有货(${displayStock}件)` : '缺货' }}
           </span>
         </div>
       </div>
 
-      <!-- 商品规格选择 -->
-      <div class="product-options">
-        <div class="option-item" v-for="(option, index) in product.options" :key="index">
-          <div class="option-label">{{ option.label }}</div>
+      <div class="product-options" v-if="product.skus && product.skus.length">
+        <div class="option-item">
+          <div class="option-label">规格</div>
           <div class="option-values">
             <span
-                v-for="value in option.values"
-                :key="value"
+                v-for="sku in product.skus"
+                :key="sku.id"
                 class="option-value"
                 :class="{
-                selected: selectedOptions[option.label] === value,
-                disabled: isOptionDisabled(option.label, value)
-              }"
-                @click="selectOption(option.label, value)"
+                  selected: selectedSkuId === sku.id,
+                  disabled: isSkuDisabled(sku)
+                }"
+                @click="selectSku(sku)"
             >
-              {{ value }}
+              {{ sku.skuName }}
             </span>
           </div>
         </div>
       </div>
 
-      <!-- 购买数量 -->
       <div class="quantity-selector">
         <div class="quantity-label">购买数量：</div>
         <div class="quantity-control">
@@ -117,32 +405,29 @@
         <div class="stock-info">最多可购买{{ maxQuantity }}件</div>
       </div>
 
-      <!-- 操作按钮 -->
       <div class="action-buttons">
         <button
             class="btn add-to-cart"
-            :disabled="product.stock <= 0"
+            :disabled="!canPurchase"
             @click="addToCart"
         >
           <span class="btn-icon">🛒</span> 加入购物车
         </button>
         <button
             class="btn buy-now"
-            :disabled="product.stock <= 0"
+            :disabled="!canPurchase"
             @click="buyNow"
         >
           立即购买
         </button>
       </div>
 
-      <!-- 商品描述 -->
       <div class="product-description">
         <h3>商品详情</h3>
-        <div class="description-content" v-html="product.description"></div>
+        <div class="description-content">{{ product.description || '暂无商品描述' }}</div>
       </div>
     </div>
 
-    <!-- 用户评价 -->
     <div class="product-reviews">
       <div class="reviews-header">
         <h3>用户评价 ({{ product.reviewCount }})</h3>
@@ -157,7 +442,6 @@
         </div>
       </div>
 
-      <!-- 评价筛选 -->
       <div class="review-filters">
         <span
             v-for="filter in reviewFilters"
@@ -170,7 +454,6 @@
         </span>
       </div>
 
-      <!-- 评价列表 -->
       <div class="review-list">
         <div v-for="review in filteredReviews" :key="review.id" class="review-item">
           <div class="reviewer-info">
@@ -197,7 +480,6 @@
         </div>
       </div>
 
-      <!-- 查看更多评价 -->
       <div class="more-reviews" v-if="product.reviewCount > 3">
         <button class="btn more-reviews-btn" @click="showAllReviews">
           查看全部{{ product.reviewCount }}条评价
@@ -205,7 +487,6 @@
       </div>
     </div>
 
-    <!-- 底部操作栏 -->
     <div class="bottom-bar">
       <div class="bottom-bar-left">
         <router-link to="/" class="bottom-icon">
@@ -224,268 +505,45 @@
       </div>
     </div>
 
-    <!-- 图片放大模态框 -->
     <div v-if="showImageZoom" class="image-zoom-modal" @click="showImageZoom = false">
       <div class="modal-content" @click.stop>
         <button class="close-modal" @click="showImageZoom = false">×</button>
-        <img :src="currentImage" :alt="product.name" class="zoomed-image" />
+        <img :src="currentImage" :alt="product.name" class="zoomed-image" @error="onImgError" />
       </div>
     </div>
 
-    <!-- 评价图片放大模态框 -->
     <div v-if="showReviewImageModal" class="image-zoom-modal" @click="showReviewImageModal = false">
       <div class="modal-content" @click.stop>
         <button class="close-modal" @click="showReviewImageModal = false">×</button>
         <img :src="currentReviewImage" alt="评价图片" class="zoomed-image" />
       </div>
     </div>
+    </template>
   </div>
 </template>
 
-<script>
-export default {
-  name: 'ProductDetailView',
-  data() {
-    return {
-      // 商品数据
-      product: {
-        id: 1,
-        name: '男士运动跑步鞋 轻便透气 防滑耐磨',
-        sku: 'SP202305001',
-        brand: 'DECATHLON',
-        currentPrice: 299.00,
-        originalPrice: 399.00,
-        discount: 7.5,
-        rating: 4.5,
-        reviewCount: 245,
-        stock: 15,
-        images: [
-          'https://images.unsplash.com/photo-1542291026-7eec264c27ff?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80',
-          'https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80',
-          'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80',
-          'https://images.unsplash.com/photo-1605348532760-6753d2c43329?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&q=80'
-        ],
-        options: [
-          {
-            label: '颜色',
-            values: ['黑色', '白色', '蓝色', '灰色']
-          },
-          {
-            label: '尺码',
-            values: ['39', '40', '41', '42', '43', '44']
-          }
-        ],
-        description: `
-          <p>这款运动跑步鞋专为日常跑步训练设计，提供出色的缓震和支撑性能。</p>
-          <h4>产品特点：</h4>
-          <ul>
-            <li>轻质透气鞋面，提供卓越的透气性</li>
-            <li>EVA中底，提供良好的缓震效果</li>
-            <li>耐磨橡胶外底，抓地力强，适合多种路面</li>
-            <li>符合人体工学的鞋垫设计，提升舒适度</li>
-            <li>反光细节设计，提升夜间跑步安全性</li>
-          </ul>
-          <h4>适用场景：</h4>
-          <p>日常跑步训练、健身房锻炼、休闲穿着</p>
-        `
-      },
-
-      // 评价数据
-      reviews: [
-        {
-          id: 1,
-          userName: '跑步爱好者',
-          date: '2023-10-15',
-          rating: 5,
-          content: '鞋子非常轻便，透气性很好，跑了10公里脚也不觉得闷。缓震效果也不错，对膝盖友好。',
-          images: [
-            'https://images.unsplash.com/photo-1542291026-7eec264c27ff?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80'
-          ]
-        },
-        {
-          id: 2,
-          userName: '运动新手',
-          date: '2023-10-10',
-          rating: 4,
-          content: '外观很时尚，穿着舒适。尺码标准，按平时尺码购买即可。唯一不足是白色不太耐脏。',
-          images: []
-        },
-        {
-          id: 3,
-          userName: '健身达人',
-          date: '2023-10-05',
-          rating: 5,
-          content: '性价比很高的一款跑鞋，无论是跑步还是日常穿着都很舒适。已经推荐给朋友了。',
-          images: [
-            'https://images.unsplash.com/photo-1606107557195-0e29a4b5b4aa?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=400&q=80',
-            'https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w-400&q=80'
-          ]
-        },
-        {
-          id: 4,
-          userName: '马拉松选手',
-          date: '2023-09-28',
-          rating: 4,
-          content: '作为训练鞋很合适，轻量化的设计让长距离训练更轻松。不过对于专业比赛来说，缓冲可能稍显不足。',
-          images: []
-        },
-        {
-          id: 5,
-          userName: '日常通勤者',
-          date: '2023-09-20',
-          rating: 5,
-          content: '不仅适合运动，日常穿搭也很棒。很百搭，舒适度可以穿一整天。',
-          images: []
-        }
-      ],
-
-      // 用户交互数据
-      currentImageIndex: 0,
-      selectedOptions: {
-        '颜色': '黑色',
-        '尺码': '41'
-      },
-      quantity: 1,
-      cartCount: 3,
-      showImageZoom: false,
-      showReviewImageModal: false,
-      currentReviewImage: '',
-
-      // 评价筛选
-      reviewFilters: [
-        { label: '全部', value: 'all', count: 245 },
-        { label: '好评', value: 'good', count: 210 },
-        { label: '中评', value: 'medium', count: 25 },
-        { label: '差评', value: 'bad', count: 10 },
-        { label: '有图', value: 'hasImage', count: 89 }
-      ],
-      activeFilter: 'all'
-    }
-  },
-  computed: {
-    currentImage() {
-      return this.product.images[this.currentImageIndex]
-    },
-    maxQuantity() {
-      return Math.min(this.product.stock, 99)
-    },
-    filteredReviews() {
-      if (this.activeFilter === 'all') {
-        return this.reviews.slice(0, 3)
-      } else if (this.activeFilter === 'good') {
-        return this.reviews.filter(review => review.rating >= 4).slice(0, 3)
-      } else if (this.activeFilter === 'medium') {
-        return this.reviews.filter(review => review.rating === 3).slice(0, 3)
-      } else if (this.activeFilter === 'bad') {
-        return this.reviews.filter(review => review.rating <= 2).slice(0, 3)
-      } else if (this.activeFilter === 'hasImage') {
-        return this.reviews.filter(review => review.images && review.images.length > 0).slice(0, 3)
-      }
-      return this.reviews.slice(0, 3)
-    }
-  },
-  methods: {
-    changeImage(index) {
-      this.currentImageIndex = index
-    },
-    selectOption(optionLabel, value) {
-      // 检查选项是否可用
-      if (this.isOptionDisabled(optionLabel, value)) return
-
-      this.selectedOptions[optionLabel] = value
-    },
-    isOptionDisabled(optionLabel, value) {
-      // 这里可以添加逻辑来检查某些选项组合是否不可用
-      // 例如：某些颜色可能没有某些尺码
-      if (optionLabel === '尺码' && this.selectedOptions['颜色'] === '白色' && value === '44') {
-        return true // 白色没有44码
-      }
-      return false
-    },
-    increaseQuantity() {
-      if (this.quantity < this.maxQuantity) {
-        this.quantity++
-      }
-    },
-    decreaseQuantity() {
-      if (this.quantity > 1) {
-        this.quantity--
-      }
-    },
-    validateQuantity() {
-      if (this.quantity < 1) {
-        this.quantity = 1
-      } else if (this.quantity > this.maxQuantity) {
-        this.quantity = this.maxQuantity
-      }
-    },
-    addToCart() {
-      if (this.product.stock <= 0) {
-        alert('商品已缺货')
-        return
-      }
-
-      // 构建商品信息
-      const productToAdd = {
-        id: this.product.id,
-        name: this.product.name,
-        price: this.product.currentPrice,
-        image: this.currentImage,
-        options: { ...this.selectedOptions },
-        quantity: this.quantity
-      }
-
-      // 这里应该调用API添加到购物车
-      console.log('添加到购物车:', productToAdd)
-
-      // 更新购物车数量
-      this.cartCount += this.quantity
-
-      // 显示成功消息
-      alert(`已添加${this.quantity}件商品到购物车`)
-    },
-    buyNow() {
-      if (this.product.stock <= 0) {
-        alert('商品已缺货')
-        return
-      }
-
-      // 这里应该跳转到订单确认页
-      console.log('立即购买:', {
-        product: this.product,
-        options: this.selectedOptions,
-        quantity: this.quantity
-      })
-
-      // 模拟跳转到订单页
-      alert(`立即购买${this.quantity}件商品，跳转到订单页面`)
-    },
-    formatDate(dateString) {
-      const date = new Date(dateString)
-      return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
-    },
-    changeFilter(filter) {
-      this.activeFilter = filter
-    },
-    showReviewImage(img) {
-      this.currentReviewImage = img
-      this.showReviewImageModal = true
-    },
-    showAllReviews() {
-      alert('显示全部评价')
-      // 这里应该跳转到完整评价页面或加载更多评价
-    }
-  }
-}
-</script>
 
 <style scoped>
+/* 样式与原文件完全一致，请保留您原有的所有样式代码 */
+/* 这里仅做一个示例，实际请复制您之前文件中的完整样式 */
 .product-detail {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
   max-width: 1200px;
   margin: 0 auto;
-  padding-bottom: 80px; /* 为底部操作栏留出空间 */
+  padding-bottom: 80px;
   background-color: #f8f9fa;
+  min-height: 300px;
+}
+
+.load-error {
+  text-align: center;
+  padding: 80px 20px;
+  color: #666;
+}
+
+.load-error p {
+  margin-bottom: 16px;
+  font-size: 16px;
 }
 
 /* 顶部导航 */
@@ -657,8 +715,8 @@ export default {
   text-decoration: line-through;
 }
 
-.discount-tag {
-  background-color: #ff4444;
+.off-shelf-tag {
+  background-color: #999;
   color: white;
   padding: 2px 8px;
   border-radius: 4px;

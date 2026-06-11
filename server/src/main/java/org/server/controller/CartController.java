@@ -32,29 +32,34 @@ public class CartController {
     }
 
     @PutMapping("/{id}")
-    public Result<Void> updateCartQuantity(@PathVariable("id") Long cartId, String guestId, @RequestBody @Validated CartDTO.CartUpdateStepDTO dto) {
+    public Result<Void> updateCartQuantity(
+            @PathVariable("id") Long cartId,
+            @RequestBody @Validated CartDTO.CartUpdateStepDTO dto
+    ) {
         Long userId = BaseContext.getCurrentId();
-        cartService.updateCartStep(userId, guestId, cartId, dto.getAction());
+        cartService.updateCartStep(userId, dto.getGuestId(), cartId, dto.getAction());
         return Result.success("购物车更新成功", null);
     }
 
     @PutMapping("/checked/{id}")
-    public Result<Void> updateCartChecked(@PathVariable("id") Long cartId,String guestId, @RequestBody @Validated CartDTO.CartCheckedDTO dto) {
+    public Result<Void> updateCartChecked(@PathVariable("id") Long cartId, @RequestBody @Validated CartDTO.CartCheckedDTO dto) {
         Long userId = BaseContext.getCurrentId();
-        cartService.updateCartChecked(userId,guestId,cartId, dto.getChecked());
+        // 从 DTO 获取
+        cartService.updateCartChecked(userId, dto.getGuestId(), cartId, dto.getChecked());
         return Result.success("状态修改成功", null);
     }
 
-    // 🌟 补上删除单项的接口，这样 DELETE /cart/1 就能跑通了
     @DeleteMapping("/{id}")
-    public Result<Void> deleteCartItem(@PathVariable("id") Long cartId, String guestId) {
+    public Result<Void> deleteCartItem(@PathVariable("id") Long cartId, @RequestParam(required = false) String guestId) {
+        // 对于 DELETE 请求，通常没有 @RequestBody，建议使用 @RequestParam 接收 URL 参数
         Long userId = BaseContext.getCurrentId();
-        cartService.deleteCartItem(userId,guestId,cartId);
+        cartService.deleteCartItem(userId, guestId, cartId);
         return Result.success("删除成功", null);
     }
 
     @DeleteMapping("/clear")
-    public Result<Void> clearCart(String guestId) {
+    public Result<Void> clearCart(@RequestParam(required = false) String guestId) {
+        // 同样，清空接口没有 body，使用 @RequestParam
         Long userId = BaseContext.getCurrentId();
         cartService.clearCart(userId, guestId);
         return Result.success("购物车清空成功", null);

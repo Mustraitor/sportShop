@@ -17,6 +17,7 @@ public class ProductVO {
     public static class Simple {
         private Long id;
         private String name;
+        private Long categoryId;
         private BigDecimal price;
         private String mainImage;
         private Integer status;
@@ -30,6 +31,7 @@ public class ProductVO {
     public static class Detail {
         private Long id;
         private String name;
+        private Long categoryId;
         private String description;
         private BigDecimal price;
         private Integer stock;

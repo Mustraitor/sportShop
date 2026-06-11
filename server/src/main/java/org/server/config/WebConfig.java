@@ -24,7 +24,8 @@ public class WebConfig implements WebMvcConfigurer {
                         "/user/list",
                         "/oss/upload-product",
                         "/error",
-                        "/cart/**"
+                        "/product/list"
+
                 );
     }
 

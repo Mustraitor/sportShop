@@ -1,24 +1,26 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { logoutApi, getUserList } from '@/api/user.js'
+import { onMounted } from 'vue'
+import { logoutApi } from '@/api/user.js'
 import { useUserStore } from '@/stores/user' 
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import SearchModal from "@/components/SearchModal.vue";
+import { cartApi } from '@/api/cart'
 
 const userStore = useUserStore() 
 const router = useRouter()
-const userList = ref([])
-// 请求后端接口
-const getUsers = async () => {
-  try {
-    const data = await getUserList()
-    userList.value = data
-    console.log('后端返回数据：', data)
-  } catch (error) {
-    console.error(error)
-  }
-} 
+const route = useRoute()
 
+const initGuest = () => {
+  userStore.initGuestId() 
+}
+
+const fetchCartCount = async () => {
+  // console.log('正在请求购物车数量，身份标识：', userStore.token || userStore.guestId)
+  const res = await cartApi.getCartList()
+  userStore.updateCartCount(res.total)
+}
+
+// 3. 退出逻辑
 const handleLogout = async () => {
   try {
     await logoutApi()
@@ -26,42 +28,67 @@ const handleLogout = async () => {
     console.error('后端退出记录失败', err)
   } finally {
     userStore.clearLoginInfo()
+    // 退出后重新初始化一下游客身份，并拉取游客的购物车数量
+    userStore.initGuestId()
+    fetchCartCount()
+    router.push('/')
+  }
+}
+
+const goTab = (tab) => {
+  // 商品分类跳转到独立的分类页
+  if (tab === 'category') {
+    router.push('/product-category')
+    return
+  }
+  homeStore.setTab(tab)
+  if (router.currentRoute.value.path !== '/') {
     router.push('/')
   }
 }
 
 onMounted(() => {
-  // getUsers()
+  initGuest()
+  fetchCartCount()
 })
 </script>
 <template>
   <header class="header">
-    <!-- 左侧 Logo -->
-  <router-link to="/" class="logo">
-    <img src="/favicon.ico" alt="型动派 logo" />
-    <span>型动派</span>
-  </router-link>
+    <router-link to="/" class="logo">
+      <img src="/favicon.ico" alt="型动派 logo" />
+      <span>型动派</span>
+    </router-link>
+        <div class="home-tabs">
+      <span
+        class="home-tab"
+        :class="{ active: route.path === '/product-category' }"
+        @click="goTab('category')"
+      >商品分类</span>
+    </div>
     <SearchModal />
     
-    <!-- 右侧导航 -->
     <div class="nav">
       <router-link to="/cart" class="nav-item">
-        <div class="nav-icon cart-icon">
+        <div class="nav-icon cart-icon-wrapper">
+          <div class="cart-badge" v-if="userStore.cartTotalCount > 0">
+            {{ userStore.cartTotalCount > 99 ? '99+' : userStore.cartTotalCount }}
+          </div>
           <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              xmlns="http://www.w3.org/2000/svg"
-              aria-hidden="true"
-              >
-              <path d="M8.2 8.5C8.2 5 9.9 2.8 12 2.8s3.8 2.3 3.8 5.7M5 20.5c.1.5.5.8 1 .8h12c.5 0 .9-.3 1-.8L21.1 10.8H2.9L5 20.5Z" />
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            xmlns="http://www.w3.org/2000/svg"
+            aria-hidden="true"
+          >
+            <path d="M8.2 8.5C8.2 5 9.9 2.8 12 2.8s3.8 2.3 3.8 5.7M5 20.5c.1.5.5.8 1 .8h12c.5 0 .9-.3 1-.8L21.1 10.8H2.9L5 20.5Z" />
           </svg>
           <div>购物车</div>
         </div>
       </router-link>
+
       <router-link v-show="userStore.token" to="/order" class="nav-item" >
         <div class="nav-icon">
           <svg 
@@ -78,6 +105,7 @@ onMounted(() => {
           <div>订单</div>
         </div>
       </router-link>
+
       <div v-if="!userStore.token" class="nav-item" @click="userStore.showLogin()">
           <div class="nav-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -87,14 +115,15 @@ onMounted(() => {
             <div>登录</div>
           </div>
       </div>
+
       <div v-else class="user-menu-container">
           <div class="nav-icon avatar-trigger">
             <img 
               class="custom-avatar" 
-              :src="userStore.userInfo.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" 
+              :src="userStore.userInfo?.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" 
               alt="avatar"
             />
-            <div class="user-name">{{ userStore.userInfo.userName }}</div>
+            <div class="user-name">{{ userStore.userInfo?.userName }}</div>
           </div>
           <div class="dropdown-content">
             <div class="dropdown-item" @click="router.push('/profile')">个人中心</div>
@@ -102,19 +131,8 @@ onMounted(() => {
             <div class="dropdown-item logout" @click="handleLogout">退出登录</div>
           </div>
       </div>
-      </div>
-  </header>
-  <!-- <img src="https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/%E7%BA%B8%E4%B8%8A%E7%9A%84%E9%AD%94%E6%B3%95%E4%BD%BF/20.jpg" alt=""/> -->
-  <!-- <a href="https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/%E7%BA%B8%E4%B8%8A%E7%9A%84%E9%AD%94%E6%B3%95%E4%BD%BF/20.jpg">666</a> -->
- 
-  <!-- 测试前后端数据库连通性 -->
-  <!-- <div style="margin-top: 90px;">
-    <h2>用户列表测试</h2>
-    <div v-for="item in userList" :key="item.userId">
-      {{ item.userName }}
     </div>
-  </div> -->
-
+  </header>
 </template>
 <style scoped>
 /* 头部整体布局 */
@@ -140,6 +158,7 @@ onMounted(() => {
   align-items: center; 
   gap: 12px; 
   cursor: pointer; 
+  text-decoration: none;
 }
 .logo img { 
   height: 45px; 
@@ -149,53 +168,22 @@ onMounted(() => {
   font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
   font-size: 22px; 
   font-weight: 500; 
-  color: var(--main-blue-dark); 
+  color: var(--main-blue-dark, #0175b9); 
   letter-spacing: 3px;
   -webkit-font-smoothing: antialiased; 
   font-style: italic;
 }
 
-/* 中间搜索框区域 */
-.search {
-  flex: 1;
-  max-width: 500px;
-  margin: 0 40px;
-  position: relative;
-}
-
-.search input {
-  width: 100%;
-  padding: 10px 20px;
-  padding-right: 50px; /* 给图标预留空间 */
-  border: 1.5px solid #333;
-  border-radius: 25px;
-  outline: none;
-  font-size: 14px;
-}
-
-.search button {
-  position: absolute;
-  right: 15px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  cursor: pointer;
-
-  /* 关键：让 SVG 继承颜色 */
-  color: #333;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.search button svg {
-  pointer-events: none; /* 避免点到 SVG 失效 */
-}
-
 /* 右侧导航项容器 */
-.nav { display: flex; align-items: center; gap: 30px; }
-.nav a { text-decoration: none; color: inherit; }
+.nav { 
+  display: flex; 
+  align-items: center; 
+  gap: 30px; 
+}
+.nav a { 
+  text-decoration: none; 
+  color: inherit; 
+}
 
 /* 统一图标+文字的垂直布局类 */
 .nav-item, .nav-icon {
@@ -206,33 +194,30 @@ onMounted(() => {
   cursor: pointer;
   color: #333;
   transition: opacity 0.2s;
-  /* --- 新增：为伪元素提供定位基准 --- */
+  /* 为伪元素下划线提供定位基准 */
   position: relative; 
-  padding-bottom: 4px; /* 稍微留出一点底部间距，防止下划线紧贴文字 */
+  padding-bottom: 4px; 
 }
 
 .nav-item:hover { 
   opacity: 0.7;
 }
 
-/* --- 修改：伪元素特效 --- */
+/* 伪元素动态下划线特效 */
 .nav-item::after {
   content: '';
   position: absolute;
   left: 0;
-  bottom: 0; /* 控制下划线在容器最底部 */
+  bottom: 0; 
   width: 100%;
   height: 2px;
   background-color: #0175b9;
-  
-  /* 初始状态：横向缩放为 0 */
   transform: scaleX(0);
-  /* 设置缩放中心，可以是 center 或 left */
   transform-origin: center; 
   transition: transform 0.3s ease;
 }
 
-/* 悬停时激活伪元素 */
+/* 悬停时激活下划线 */
 .nav-item:hover::after {
   transform: scaleX(1);
 }
@@ -247,6 +232,55 @@ onMounted(() => {
   white-space: nowrap;
   margin-top: 4px;
 }
+/* 搜索框左侧选项卡 */
+.home-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 30px;
+}
+.home-tab {
+  font-size: 15px;
+  color: #333;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 20px;
+  white-space: nowrap;
+  transition: all 0.25s;
+}
+.home-tab:hover {
+  color: #0175b9;
+  background: #f2f7fb;
+}
+.home-tab.active {
+  color: #fff;
+  background: #0175b9;
+  font-weight: 600;
+}
+
+/* ================= 购物车徽标专区 ================= */
+.cart-icon-wrapper {
+  position: relative;
+}
+
+.cart-badge {
+  position: absolute;
+  top: -8px;       
+  right: -10px;    
+  background-color: #0175b9; /* 蓝色徽标 */
+  color: #fff;               
+  font-size: 10px;           
+  font-weight: bold;
+  line-height: 1;
+  padding: 3px 5px;          
+  border-radius: 10px;       
+  min-width: 16px;
+  text-align: center;
+  box-sizing: border-box;
+  border: 1.5px solid #fff;  /* 白边防止视觉黏连 */
+  pointer-events: none;      /* 不阻挡鼠标点击 */
+}
+/* ================================================== */
 
 /* 自定义头像图片样式 */
 .custom-avatar {
@@ -257,16 +291,16 @@ onMounted(() => {
   object-fit: cover;
 }
 
-
+/* 下拉菜单区域 */
 .user-menu-container {
-  position: relative; /* 让弹窗相对于它定位 */
+  position: relative; 
 }
 
 .dropdown-content {
-  display: none; /* 默认隐藏 */
+  display: none; 
   position: absolute;
   top: 100%;
-  right: -10px; /* 微调对齐使其居中偏下 */
+  right: -10px; 
   margin-top: 15px;
   background-color: #fff;
   min-width: 110px;
@@ -274,10 +308,10 @@ onMounted(() => {
   border-radius: 8px;
   z-index: 100;
   padding: 8px 0;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border-color, #eee);
 }
 
-/* 增加一个透明伪元素防止鼠标移开时菜单消失太快（提升体验） */
+/* 透明伪元素：防止鼠标刚离开头像，菜单就消失 */
 .user-menu-container::after {
   content: '';
   position: absolute;
@@ -287,7 +321,7 @@ onMounted(() => {
   height: 15px; 
 }
 
-/* 鼠标悬停容器时显示弹窗 */
+/* 鼠标悬停显示弹窗 */
 .user-menu-container:hover .dropdown-content { display: block; }
 
 .dropdown-item {
@@ -300,12 +334,12 @@ onMounted(() => {
 }
 
 .dropdown-item:hover { 
-  background-color: var(--bg-gray); 
-  color: var(--primary-blue); 
+  background-color: var(--bg-gray, #f5f7fa); 
+  color: var(--primary-blue, #0175b9); 
 }
 
 .dropdown-item.logout {
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border-color, #eee);
   color: #ff4d4f;
 }
 .dropdown-item.logout:hover {
@@ -315,11 +349,6 @@ onMounted(() => {
 /* 响应式调整 */
 @media (max-width: 900px) {
   .header { padding: 0 15px; }
-  .search { flex: 1; margin: 0 15px; }
   .logo span { display: none; }
-}
-
-@media (max-width: 600px) {
-  .search { display: none; }
 }
 </style>

@@ -5,30 +5,46 @@ export const useUserStore = defineStore('user', () => {
     const token = ref('')
     const userInfo = ref({})
     const isLoginVisible = ref(false)
+    const cartTotalCount = ref(0)
 
-    // ✅ 新增游客ID
-    const guestId = ref(localStorage.getItem('guestId') || '')
+    const guestId = ref('')
 
     const showLogin = () => { isLoginVisible.value = true }
     const hideLogin = () => { isLoginVisible.value = false }
 
-    const setLoginInfo = (newToken, user) => {
+    // 初始化 guestId
+    const initGuestId = () => {
+        if (!guestId.value && !token.value) {
+            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                guestId.value = crypto.randomUUID()
+            } else {
+                // 回退方案：时间戳 + 随机字符串
+                guestId.value = 'g_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 7)
+            }
+        }
+        return guestId.value
+    }
+
+    // 登录成功：保存信息、合并购物车、清除游客标识
+    const setLoginInfo = async (newToken, user) => {
         token.value = newToken
         userInfo.value = user
         hideLogin() 
+        guestId.value = '' 
     }
 
+    // 退出登录：清除所有状态，并为下一次未登录访问准备新的 guestId
     const clearLoginInfo = () => {
         token.value = ''
         userInfo.value = {}
+        cartTotalCount.value = 0
+        guestId.value = '' 
+        localStorage.removeItem('user-store')
+        initGuestId()
     }
 
-    // 初始化 guestId，只执行一次
-    const initGuestId = () => {
-        if (!guestId.value) {
-            guestId.value = crypto.randomUUID()
-            localStorage.setItem('guestId', guestId.value)
-        }
+    const updateCartCount = (count) => {
+        cartTotalCount.value = count
     }
 
     return { 
@@ -39,7 +55,14 @@ export const useUserStore = defineStore('user', () => {
         hideLogin, 
         setLoginInfo,
         clearLoginInfo,
-        guestId,      //  guestId 全局状态
-        initGuestId   //  初始化函数
+        guestId,      
+        initGuestId,  
+        cartTotalCount,
+        updateCartCount
     }
-}, { persist: true })
+}, { 
+    persist: {
+        key: 'user-store',
+        paths: ['token', 'userInfo', 'guestId', "cartTotalCount"] 
+    }
+})

@@ -30,7 +30,7 @@ public class CartDTO {
         @Max(value = 99, message = "单品单次添加不能超过 99 件")
         private Integer quantity;
         // 游客 ID
-        @NotBlank(message = "游客ID不能为空")
+//        @NotBlank(message = "游客ID不能为空")
         private String guestId;
     }
 
@@ -44,7 +44,7 @@ public class CartDTO {
         @Pattern(regexp = "^(add|sub)$", message = "操作类型不合法，只能传 add 或 sub")
         private String action;
         // 游客ID
-        @NotBlank(message = "游客ID不能为空")
+//        @NotBlank(message = "游客ID不能为空")
         private String guestId;
     }
     @Data
@@ -53,7 +53,7 @@ public class CartDTO {
         @Range(min = 0, max = 1, message = "勾选状态不合法，只能是 0 或 1")
         private Integer checked;
         // 游客ID
-        @NotBlank(message = "游客ID不能为空")
+//        @NotBlank(message = "游客ID不能为空")
         private String guestId;
     }
 

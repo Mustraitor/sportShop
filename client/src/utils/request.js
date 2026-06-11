@@ -1,7 +1,6 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user' 
-import router from '@/router' 
 
 const service = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL, 
@@ -13,8 +12,30 @@ service.interceptors.request.use(
   config => {
     const userStore = useUserStore()
     const token = userStore.token 
+    const method = (config.method || '').toLowerCase()
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
+    } else {
+      const guestId = userStore.guestId || userStore.initGuestId()
+      if (config.url && config.url.includes('/cart')) {
+        
+        config.headers['guestId'] = guestId // 如果后端也支持从 header 拿，这行保留
+        if (method === 'post' || method === 'put') {
+          // POST 和 PUT 使用 body 传参
+          config.data = {
+            ...config.data,
+            guestId: guestId 
+          }
+        } else if (method === 'get' || method === 'delete') {
+          // GET 和 DELETE 使用 URL Query 传参 (?guestId=xxx)
+          config.params = {
+            ...config.params,
+            guestId: guestId
+          }
+        }
+        // ----------------------
+      }
     }
     return config
   },
@@ -41,7 +62,7 @@ service.interceptors.response.use(
     return res.data
   },
   error => {
-    // 【新增核心】：如果后端拦截器直接抛出了标准的 HTTP 401 状态码，在这里进行捕获！
+    // 如果后端拦截器直接抛出了标准的 HTTP 401 状态码，在这里进行捕获！
     if (error.response && error.response.status === 401) {
       const userStore = useUserStore()
       userStore.clearLoginInfo() // 清除 Pinia 缓存和 localStorage

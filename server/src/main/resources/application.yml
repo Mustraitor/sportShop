@@ -28,8 +28,16 @@ mybatis-plus:
     map-underscore-to-camel-case: true # 自动开启驼峰命名转换（数据库 goods_name -> Java goodsName）
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl # 在控制台打印 SQL 语句，开发调试必看
 aliyun:
+  sms:
+      access-key-id: ${SMS_ACCESS_KEY:}
+      access-key-secret: ${SMS_ACCESS_SECRET:}
+      sign-name: 速通互联验证码
+      template-code: 100001
+      code-length: 6
+      valid-time: 180
   oss:
     endpoint: oss-cn-beijing.aliyuncs.com
-    access-key-id: ${OSS_KEY}
-    access-key-secret: ${OSS_SECRET}
+    access-key-id: ${OSS_KEY:}
+    access-key-secret: ${OSS_SECRET:}
     bucket-name: sportshop-pictures
+

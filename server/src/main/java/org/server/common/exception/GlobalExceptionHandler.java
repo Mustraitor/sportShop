@@ -19,7 +19,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public Result<?> handleBusinessException(BusinessException e) {
         // 商业规范：由于是可预知的业务逻辑阻止（如分类不存在），用 WARN 级别即可，绝不打印恶心的长堆栈
-        log.warn("🚨 业务逻辑拦截 -> code: {}, msg: {}", e.getCode(), e.getMessage());
+        log.warn("业务逻辑拦截 -> code: {}, msg: {}", e.getCode(), e.getMessage());
         // 完美吐出你在构造方法里传入的 code 和 message
         return Result.error(e.getCode(), e.getMessage());
     }
