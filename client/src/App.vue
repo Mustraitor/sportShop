@@ -1,12 +1,14 @@
 <script setup>
 import LoginDialog from '@/components/LoginDialog.vue'
+import Footer from '@/components/Footer.vue'
 import { useUserStore } from '@/stores/user' 
 const userStore = useUserStore() 
 </script>
 
 <template>
   <router-view :key="userStore.token" />
-  <LoginDialog /> 
+  <LoginDialog />
+  <Footer/> 
 </template>
 
 <style>

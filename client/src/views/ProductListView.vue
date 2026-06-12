@@ -19,30 +19,32 @@
         <aside class="sidebar">
           <h3 class="sidebar-title">商品分类</h3>
           <ul class="cat-tree">
-            <li v-for="root in tree" :key="root.id">
+            <li v-for="root in tree" :key="root.id" class="root-item">
               <div
                 class="cat-l1"
-                :class="{ active: activeId === root.id }"
-                @click="goCategory(root)"
-              >{{ root.name }}</div>
-              <ul v-if="root.children && root.children.length" class="cat-children">
-                <li
-                  v-for="child in root.children"
-                  :key="child.id"
-                  class="cat-l2"
-                  :class="{ active: activeId === child.id }"
-                  @click="goCategory(child)"
-                >
-                  {{ child.name }}
-                  <span
-                    v-for="leaf in child.children || []"
-                    :key="leaf.id"
-                    class="cat-l3"
-                    :class="{ active: activeId === leaf.id }"
-                    @click.stop="goCategory(leaf)"
-                  >{{ leaf.name }}</span>
-                </li>
-              </ul>
+                :class="{ active: expandedId === root.id }"
+                @click="toggleExpand(root.id)"
+              >
+                {{ root.name }}
+                <span class="arrow-icon">{{ expandedId === root.id ? '▼' : '▶' }}</span>
+              </div>
+              
+              <transition name="fade">
+                <ul v-if="expandedId === root.id && root.children" class="cat-children">
+                  <li v-for="child in root.children" :key="child.id" class="cat-l2-wrapper">
+                    <div class="cat-l2" @click="goCategory(child)">{{ child.name }}</div>
+                    
+                    <div class="cat-l3-list" v-if="child.children && child.children.length">
+                      <span
+                        v-for="leaf in child.children"
+                        :key="leaf.id"
+                        class="cat-l3"
+                        @click.stop="goCategory(leaf)"
+                      >{{ leaf.name }}</span>
+                    </div>
+                  </li>
+                </ul>
+              </transition>
             </li>
           </ul>
         </aside>
@@ -238,7 +240,17 @@ onMounted(async () => {
   }
   loadProducts()
 })
+const expandedId = ref(null) // 记录当前展开的一级分类 ID
 
+const toggleExpand = (id) => {
+  // 如果点击的是已经展开的，就闭合；否则展开当前点击的
+  expandedId.value = (expandedId.value === id) ? null : id
+}
+
+// 💡 进阶：如果路由切换了，自动展开对应的分类
+watch(() => route.path, () => {
+  // 假设你想根据当前路由自动展开父级，可以在这里写逻辑
+}, { immediate: true })
 // 切换分类时重置分页并重新加载
 watch(activeId, () => {
   page.value = 1
@@ -480,4 +492,54 @@ watch(activeId, () => {
   .content-grid { grid-template-columns: 1fr; }
   .sidebar { position: static; }
 }
+.cat-tree { list-style: none; padding: 0; margin: 0; }
+.root-item { border-bottom: 1px solid #eee; }
+
+.cat-l1 {
+  padding: 15px 20px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  font-weight: bold;
+  background: #fff;
+  transition: 0.3s;
+}
+
+.cat-l1:hover { background: #f9f9f9; }
+
+.cat-l1.active { color: #0056b3; }
+
+.cat-children {
+  background: #fdfdfd;
+  padding: 10px 0;
+}
+
+.cat-l2 {
+  padding: 8px 20px 8px 30px;
+  font-size: 14px;
+  color: #555;
+  cursor: pointer;
+}
+
+.cat-l3-list {
+  padding: 0 20px 10px 40px;
+  display: flex;
+  flex-wrap: wrap; /* 关键：自动换行 */
+  gap: 8px;
+}
+
+.cat-l3 {
+  font-size: 12px;
+  padding: 3px 10px;
+  background: #eee;
+  border-radius: 12px;
+  cursor: pointer;
+  color: #666;
+}
+
+.cat-l3:hover { background: #0056b3; color: #fff; }
+
+/* 展开动画 */
+.fade-enter-active, .fade-leave-active { transition: all 0.3s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; height: 0; overflow: hidden; }
 </style>

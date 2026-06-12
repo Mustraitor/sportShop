@@ -1,4 +1,4 @@
-import request from '@/utils/request' // 👈 确保这个路径和你项目里的 axios 实例一致
+import request from '@/utils/request' 
 
 export const addressApi = {
   /**
@@ -15,7 +15,7 @@ export const addressApi = {
   /**
    * 2. 新增当前用户地址
    * POST /address
-   * @param {Object} data 对应后端的 AddressDTO.AddDTO
+   * @param {Object} data 
    */
   addAddress(data) {
     return request({

@@ -102,4 +102,10 @@ public class OrderController {
         orderService.deleteOrder(userId, orderId);
         return Result.success("订单删除成功", null);
     }
+    @PutMapping("/address")
+    public Result<?> updateAddress(@Validated @RequestBody OrderDTO.UpdateAddress updateReq) {
+        // 业务层处理，这里会传入 orderId 和 addressId
+        orderService.updateOrderAddress(updateReq);
+        return Result.success("订单地址修改成功");
+    }
 }

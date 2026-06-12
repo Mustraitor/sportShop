@@ -42,4 +42,16 @@ public class OrderDTO {
         @NotBlank(message = "快递公司不能为空")
         private String company;
     }
+    /**
+     * 对应 PUT /order/address 请求体 (修改待付款订单地址)
+     */
+    @Data
+    public static class UpdateAddress {
+
+        @NotNull(message = "订单ID不能为空")
+        private Long orderId;
+
+        @NotNull(message = "请选择新的收货地址")
+        private Long addressId;
+    }
 }

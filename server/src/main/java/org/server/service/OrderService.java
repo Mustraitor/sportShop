@@ -51,4 +51,12 @@ public interface OrderService {
     OrderVO.ReceiveResult receiveOrder(Long userId, Long orderId);
 
     void deleteOrder(Long userId, Long orderId);
+
+    /**
+     * 修改待付款订单的收货地址
+     * @param updateReq 包含订单ID和新地址ID的请求体
+     * @return 是否修改成功
+     */
+    boolean updateOrderAddress(OrderDTO.UpdateAddress updateReq);
+
 }

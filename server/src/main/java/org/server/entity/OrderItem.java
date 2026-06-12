@@ -38,6 +38,8 @@ public class OrderItem {
     /** 该商品项的总价 (price * quantity) */
     private BigDecimal totalPrice;
 
+    private String mainImage;
+
     /** 创建时间 */
     private LocalDateTime createdAt;
 }

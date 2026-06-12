@@ -78,11 +78,26 @@
 
           <div class="info-grid">
             <div class="info-card">
-              <h4>收货人信息</h4>
-              <p>收货人：{{ order.receiver?.name }}</p>
-              <p>手机号码：{{ order.receiver?.phone }}</p>
-              <p>地址：{{ order.receiver?.address }}</p>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h4 style="margin: 0;">收货人信息</h4>
+                <el-button 
+                  v-if="order.status === 0 || order.status === 'pending'" 
+                  type="primary" 
+                  link 
+                  @click="openAddressSelector"
+                >
+                  修改地址 <el-icon><ArrowRight /></el-icon>
+                </el-button>
+              </div>
+              <p>收货人：{{ order.receiver?.name || '--' }}</p>
+              <p>手机号码：{{ order.receiver?.phone || '--' }}</p>
+              <p>地址：{{ order.receiver?.address || '--' }}</p>
             </div>
+            <AddressDrawer 
+              v-model:show="showAddressDrawer" 
+              v-model="selectedAddressId"
+              @refresh="fetchAddressList"
+            />
             <div class="info-card">
               <h4>配送信息</h4>
               <p>配送方式：{{ order.delivery?.method }}</p>
@@ -95,7 +110,6 @@
               <p>付款时间：{{ order.payment?.time || '--' }}</p>
             </div>
           </div>
-
           <div class="goods-card">
             <div class="shop-info">
               <span class="shop-name">{{ order.shopName }}</span>
@@ -106,12 +120,11 @@
                 <div class="col-sku">商品编号</div>
                 <div class="col-price">单价</div>
                 <div class="col-quantity">数量</div>
-                <div class="col-beans">京豆</div>
                 <div class="col-actions">操作</div>
               </div>
               <div class="goods-row" v-for="item in order.goods" :key="item.id">
                 <div class="col-goods">
-                  <img :src="item.img" class="goods-img" />
+                  <img :src="getGoodsImage(item.img)" class="goods-img" />
                   <div class="goods-info">
                     <div class="goods-name">{{ item.name }}</div>
                     <div class="goods-spec">{{ item.spec }}</div>
@@ -142,10 +155,6 @@
             </div>
           </div>
 
-          <div class="extra-tips">
-            <div class="tip-item" v-if="order.jdBeans > 0">购物返京豆待领取 <span class="beans">{{ order.jdBeans }}京豆</span> ></div>
-            <div class="tip-item">企业特权 成为企业会员，享新客补贴6000元！ ></div>
-          </div>
         </div>
 
         <div v-else class="empty-state">
@@ -159,18 +168,22 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { ArrowRight } from '@element-plus/icons-vue'
 import NavBar from '@/components/NavBar.vue'
+import AddressDrawer from '@/components/AddressDrawer.vue'
 import { orderApi } from '@/api/order'
-
+import { addressApi } from '@/api/address'
 import { generateDisplayOrderNo, getStatusText } from '@/utils/format'
+import { optimizeImage } from '@/utils/image'
 
 const route = useRoute()
 const router = useRouter()
+const OSS_BASE_URL = 'https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/'
 
-// 稳固的订单状态兜底结构
+// 订单响应式数据结构兜底
 const order = ref({
   orderNo: '',
   statusText: '',
@@ -186,7 +199,81 @@ const order = ref({
   jdBeans: 0,
   statusSteps: []
 })
+
 const loading = ref(true)
+const showAddressDrawer = ref(false)
+const selectedAddressId = ref(null)
+const addressList = ref([])
+
+// 获取收货地址列表 (仅供抽屉组件里的列表渲染高亮使用)
+const fetchAddressList = async () => {
+  try {
+    const res = await addressApi.getAddressList()
+    addressList.value = res.data || res || []
+  } catch (err) {
+    console.error('获取地址列表失败:', err)
+  }
+}
+
+// 打开地址选择抽屉
+const openAddressSelector = async () => {
+  await fetchAddressList()
+  // 🎯 高亮对齐：让抽屉里的高亮圆圈，直接匹配当前订单存储的最新外键地址 ID
+  selectedAddressId.value = order.value._backendAddressId
+  showAddressDrawer.value = true
+}
+
+// 🎯 核心逻辑 1：监听选中的地址变更
+watch(selectedAddressId, async (newAddressId) => {
+  // 严格约束：只有当抽屉打开、地址 ID 存在、处于待付款状态时，才允许调用同步修改
+  if (!showAddressDrawer.value || !newAddressId || !order.value._realBackendId) return
+  if (order.value.status !== 0 && order.value.status !== 'pending') return
+
+  try {
+    // 1. 调用你的业务接口，后端会将新地址信息完整覆盖写入 orders 表对应的 receiver_xxx 字段
+    await orderApi.updateOrderAddress({
+      orderId: order.value._realBackendId,
+      addressId: newAddressId
+    })
+    ElMessage.success('收货地址修改成功！')
+    
+    // 2. 核心闭环：立刻重新拉取一遍订单详情接口，吃进后端更新后的全新订单快照，实现无缝切换展示！
+    await refreshOrderDetail(order.value._realBackendId)
+  } catch (error) {
+    console.error('同步修改订单地址失败:', error)
+    ElMessage.error('修改收货地址失败，请稍后重试')
+  }
+})
+
+// 统一拉取/刷新订单信息
+const refreshOrderDetail = async (orderId) => {
+  try {
+    const apiRes = await orderApi.getOrderDetail(orderId)
+    let res = (apiRes && apiRes.data) ? apiRes.data : apiRes
+    
+    // 执行结构映射适配
+    const mappedResult = mapBackendToFrontend(res)
+    if (mappedResult) {
+      order.value = mappedResult
+      // 同步高亮所需的外键 ID
+      selectedAddressId.value = mappedResult._backendAddressId
+    } else {
+      ElMessage.error('订单不存在')
+    }
+  } catch (err) {
+    console.error('加载订单失败:', err)
+    ElMessage.error('获取订单详情失败')
+  }
+}
+
+// 商品图片路径动态解析
+const getGoodsImage = (rawPath) => {
+  if (!rawPath) return `${OSS_BASE_URL}upload/default.png`
+  const fullUrl = rawPath.startsWith('http') 
+    ? rawPath 
+    : `${OSS_BASE_URL.replace(/\/$/, '')}/${rawPath.replace(/^\/+/, '')}`
+  return optimizeImage(fullUrl, 400)
+}
 
 const getCurrentStepIndex = () => {
   const steps = order.value.statusSteps || []
@@ -200,12 +287,12 @@ const getCurrentStepIndex = () => {
 const goToOrders = () => { router.push('/order') }
 
 /**
- * 数据映射层 (Adapter)
+ * 🎯 核心逻辑 2：数据映射适配器 (Backend -> Frontend)
+ * 前端视图彻底不再依赖实时地址库，全部数据来源于后端查出的 orders 主表快照
  */
 const mapBackendToFrontend = (raw) => {
   if (!raw) return null
 
-  // 映射提取商品列表项
   const frontendGoods = (raw.items || []).map(item => ({
     id: item.id || item.skuId,
     name: item.productName || '未知商品',
@@ -213,21 +300,16 @@ const mapBackendToFrontend = (raw) => {
     skuCode: item.skuId ? String(item.skuId) : '--',
     price: item.price ?? (raw.totalAmount || 0),
     quantity: item.quantity || 1,
-    img: item.mainImage || item.picUrl || 'https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/upload/default.png'
+    img: item.mainImage || item.picUrl || '' 
   }))
 
   const orderTime = raw.createdAt ? raw.createdAt.replace('T', ' ').slice(0, 19) : '暂无时间'
   const realId = raw.id || raw.orderId
 
-  // 组装整合成前端要求的完整深层结构
   return {
-    // 🎯 升级：直接调用从 utils 进来的工具函数，产出 16 位精美长单号
     orderNo: generateDisplayOrderNo(realId), 
-    
-    // 底层保留一个真实 ID 属性备用
     _realBackendId: realId, 
-
-    // 🎯 升级：同样调用 utils 里的状态翻译机
+    _backendAddressId: raw.addressId, // 记录来源 addressId 以供抽屉组件绑定高亮
     statusText: getStatusText(raw.status),
     status: raw.status,
     totalPrice: raw.payAmount ?? raw.totalAmount ?? 0,
@@ -251,10 +333,11 @@ const mapBackendToFrontend = (raw) => {
       ]
     } : null,
 
+    // 🎯 完美承接：直接展现后端后端拼装好的 receiver 快照对象数据！
     receiver: {
-      name: raw.receiverName || '测试用户',
-      phone: raw.receiverPhone || '138****8888',
-      address: raw.addressDetail || '北京市朝阳区高新技术开发区大屯路1号'
+      name: raw.receiver?.name || '未记录收货人',
+      phone: raw.receiver?.phone || '----',
+      address: raw.receiver?.address || '未记录详细地址'
     },
     delivery: {
       method: '京东快递（支持夜间收货）',
@@ -277,56 +360,17 @@ const mapBackendToFrontend = (raw) => {
 
 onMounted(async () => {
   const orderIdRaw = route.params.id || route.query.orderId || route.query.id
-  
-  if (orderIdRaw) {
-    try {
-      const orderId = Number(orderIdRaw)
-      let res = await orderApi.getOrderDetail(orderId)
-      
-      // 如果后端查无此单，使用预置 Mock 存根数据启动防护
-      if (!res || res.id === undefined) {
-        console.warn(`⚠️ 未能成功拉取后端数据(ID: ${orderId})，已自动切换到前端抗灾存根。`)
-        res = {
-          "id": orderId,
-          "userId": 3,
-          "addressId": 1,
-          "totalAmount": 299.90,
-          "payAmount": 299.90,
-          "status": 1, // 默认为待收货状态
-          "paymentType": 1,
-          "createdAt": "2026-06-11 11:14:39",
-          "items": [
-            {
-              "id": 1,
-              "orderId": orderId,
-              "productId": 80006,
-              "skuId": 294,
-              "productName": "WEDZE 儿童托盘雪橇 TRILUGIK",
-              "skuName": "儿童托盘雪橇 TRILUGIK-S",
-              "price": 299.90,
-              "quantity": 1,
-              "totalPrice": 299.90,
-              "createdAt": "2026-06-11 11:14:39"
-            }
-          ]
-        }
-      }
-
-      const mappedResult = mapBackendToFrontend(res)
-      if (mappedResult) {
-        order.value = mappedResult
-      } else {
-        ElMessage.error('订单不存在')
-      }
-    } catch (error) {
-      console.error('业务降级处理中:', error)
-      ElMessage.error('获取订单详情失败')
-    } finally {
-      loading.value = false
-    }
-  } else {
+  if (!orderIdRaw) {
     loading.value = false
     ElMessage.error('无效的订单ID')
+    return
+  }
+
+  try {
+    const orderId = Number(orderIdRaw)
+    await refreshOrderDetail(orderId)
+  } finally {
+    loading.value = false
   }
 })
 </script>

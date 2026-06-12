@@ -51,7 +51,7 @@
             <h3>{{ isDirectPayMode ? '订单商品快照' : '商品清单' }}</h3>
             <div class="goods-list">
               <div v-for="item in cartItems" :key="item.skuId || item.id" class="goods-item">
-                <img :src="item.mainImage || item.picUrl" class="goods-img" />
+                <img :src="getGoodsImage(item)" class="goods-img" />
                 <div class="goods-info">
                   <div class="goods-name">{{ item.productName }}</div>
                   <div class="goods-spec">{{ item.skuName }}</div>
@@ -104,21 +104,22 @@
 
     <AddressDrawer 
       v-model:show="showAddressDrawer" 
-      v-model="selectedAddressId"
+      :model-value="selectedAddressId"
+      @update:model-value="handleAddressSelect"
       @refresh="fetchAddressList"
     />
   </div>
   <ModernDialog
-  v-model="payDialogVisible"
-  title="支付确认"
-  confirm-text="立即支付"
-  cancel-text="暂不支付"
-  :loading="submitting"
-  @confirm="handleRealPay"
-  @cancel="handleCancelAndCreate"
->
-  <p>您确定要发起支付吗？若选择暂不支付，订单依然会被创建，您可以后续付款。</p>
-</ModernDialog>
+    v-model="payDialogVisible"
+    title="支付确认"
+    confirm-text="立即支付"
+    cancel-text="暂不支付"
+    :loading="submitting"
+    @confirm="handleRealPay"
+    @cancel="handleCancelAndCreate"
+  >
+    <p>您确定要发起支付吗？若选择暂不支付，订单依然会被创建，您可以后续付款。</p>
+  </ModernDialog>
 </template>
 
 <script setup>
@@ -131,10 +132,15 @@ import AddressDrawer from '@/components/AddressDrawer.vue'
 import { cartApi } from '@/api/cart'
 import { orderApi } from '@/api/order'
 import { addressApi } from '@/api/address'
-import ModernDialog from '@/components/ModernDialog.vue' // 💡 自定义万能弹窗组件
+import ModernDialog from '@/components/ModernDialog.vue' 
+
+// 🎯 核心修改 2：导入图片智能组件
+import { optimizeImage } from '@/utils/image'
 
 const router = useRouter()
 const route = useRoute()
+
+const OSS_BASE_URL = 'https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/'
 
 // ==========================================
 // 1. 核心状态响应式变量
@@ -146,7 +152,7 @@ const selectedCartIds = ref([])
 const cartItems = ref([])              
 const loading = ref(true)              
 const submitting = ref(false)          
-const payDialogVisible = ref(false)   // 🎯 新增：控制现代化自定义弹窗的哨兵开关
+const payDialogVisible = ref(false)   
 
 // ==========================================
 // 2. 地址模块状态
@@ -167,6 +173,20 @@ const paymentMethod = ref('1')
 const freight = ref(0)                 
 const discount = ref(0)                
 const directPayAmount = ref(0)         
+
+// 🎯 核心修改 3：编写动态解析商品图函数
+const getGoodsImage = (item) => {
+  const rawPath = item.mainImage || item.picUrl
+  if (!rawPath) return `${OSS_BASE_URL}upload/default.png`
+  
+  // 补全绝对路径
+  const fullUrl = rawPath.startsWith('http') 
+    ? rawPath 
+    : `${OSS_BASE_URL.replace(/\/$/, '')}/${rawPath.replace(/^\/+/, '')}`
+    
+  // 结算清单页列表采用 200 宽度规格
+  return optimizeImage(fullUrl, 200)
+}
 
 // ==========================================
 // 4. 计算属性 (Computed)
@@ -193,6 +213,33 @@ const handleBack = () => {
   }
 }
 
+const handleAddressSelect = async (newAddressId) => {
+  // 1. 先让前端绑定的 ID 变量切换（这一步其实只是改了个数字）
+  selectedAddressId.value = newAddressId;
+
+  // 2. 如果是待付款订单直接支付模式
+  if (isDirectPayMode.value && orderId.value) {
+    try {
+      // 异步请求后端：改 orders 表的快照字段
+      await orderApi.updateOrderAddress({
+        orderId: orderId.value,
+        addressId: newAddressId
+      });
+      // ElMessage.success('订单收货地址已同步修改');
+      
+      // 🎯 核心修复：立刻重新调用获取详情接口！
+      // 重新拉取后，绑定的 cartItems、directPayAmount，尤其是 orders 表里刚改好的地址文本会重新回显，页面立马自动重新渲染！
+      await fetchExistingOrderDetails(orderId.value); 
+      
+    } catch (error) {
+      console.error('同步订单地址失败:', error);
+      ElMessage.error('订单地址同步失败，请重试');
+    }
+  } else {
+    // 购物车正常结算模式下，只需提示切换成功（成单时才真正传参）
+    // ElMessage.success('收货地址已切换');
+  }
+}
 // ==========================================
 // 6. 核心数据请求流
 // ==========================================
@@ -200,10 +247,14 @@ const fetchExistingOrderDetails = async (id) => {
   try {
     const detail = await orderApi.getOrderDetail(id)
     const data = detail.data || detail
+    if (data.addressId) {
+      selectedAddressId.value = data.addressId;
+    }
     directPayAmount.value = data.payAmount ?? data.totalAmount ?? 0
     cartItems.value = (data.items || []).map(item => ({
       id: item.id,
-      mainImage: item.mainImage || 'https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/upload/default.png',
+      // 保留接口原始数据字段，把统一防空防漏兜底交给上面的 getGoodsImage 控制
+      mainImage: item.mainImage || '', 
       productName: item.productName,
       skuName: item.skuName,
       price: item.price,
@@ -247,12 +298,8 @@ const fetchAddressList = async () => {
 }
 
 // ==========================================
-// 7. 创单支付复合控制流 (🎯 已改造为拦截分流模式)
+// 7. 创单支付复合控制流
 // ==========================================
-
-/**
- * A. 用户点击底部的“提交订单/支付”大按钮：触发拦截校验
- */
 const submitOrder = async () => {
   if (!selectedAddressId.value) {
     ElMessage.warning('请选择收货地址')
@@ -263,21 +310,16 @@ const submitOrder = async () => {
     return
   }
   
-  // 💡 满足条件，不直接发起创单，而是先呼出你的现代化精美弹窗
   payDialogVisible.value = true
 }
 
-/**
- * B. 🟢 弹窗中点击【立即支付】按钮
- */
 const handleRealPay = async () => {
   submitting.value = true
-  payDialogVisible.value = false // 立刻收起弹窗
+  payDialogVisible.value = false 
   const payMethodInt = parseInt(paymentMethod.value, 10) || 1
 
   try {
     if (isDirectPayMode.value) {
-      // 模式 1: 如果是已有订单直接支付
       await orderApi.payOrder({
         orderId: orderId.value,
         paymentMethod: payMethodInt
@@ -285,7 +327,6 @@ const handleRealPay = async () => {
       ElMessage.success('支付成功！')
       router.push('/order')
     } else {
-      // 模式 2: 从购物车进来的复合流：先创单，再付款
       const orderData = {
         addressId: selectedAddressId.value,
         cartIds: selectedCartIds.value,
@@ -296,7 +337,6 @@ const handleRealPay = async () => {
       const targetData = res.data || res
 
       if (targetData && (targetData.orderId || targetData.id)) {
-        // 创建成功，顺滑拉起支付
         await orderApi.payOrder({
           orderId: targetData.orderId || targetData.id, 
           paymentMethod: payMethodInt
@@ -315,13 +355,9 @@ const handleRealPay = async () => {
   }
 }
 
-/**
- * C. 🟡 弹窗中点击【取消 / 暂不支付】按钮
- */
 const handleCancelAndCreate = async () => {
-  payDialogVisible.value = false // 收起弹窗
+  payDialogVisible.value = false 
 
-  // 边界保护：如果是已有订单去支付的模式，直接退回列表页，不需要重复生成新订单
   if (isDirectPayMode.value) {
     ElMessage.info('已取消支付')
     router.push('/order')
@@ -338,13 +374,12 @@ const handleCancelAndCreate = async () => {
       paymentMethod: payMethodInt
     }
 
-    // 🎯 核心需求：只调用创建订单接口，不进行后续的 payOrder 支付
     const res = await orderApi.createOrder(orderData)
     const targetData = res.data || res
 
     if (targetData && (targetData.orderId || targetData.id)) {
       ElMessage.success('订单已成功创建，请尽快前往订单中心付款')
-      router.push('/order') // 🏃 成功创建订单后跳转至订单页
+      router.push('/order') 
     } else {
       ElMessage.error(res.msg || '订单创建失败')
     }

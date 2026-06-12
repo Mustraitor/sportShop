@@ -2,41 +2,23 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '@/components/NavBar.vue'
-// 1. 引入全局封装好的 API 与 Store 模块
 import { cartApi } from '@/api/cart'
-import { orderApi } from '@/api/order' 
 import { useUserStore } from '@/stores/user'
-import { addressApi } from '@/api/address'
+import { optimizeImage } from '@/utils/image'
+import ModernDialog from '@/components/ModernDialog.vue' 
 
 const router = useRouter()
 const userStore = useUserStore()
-
-// ---------- 常量定义 ----------
-const OSS_BASE_URL = 'https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/'
-
-// ---------- 辅助函数 ----------
-const formatImageUrl = (rawPath) => {
-  if (!rawPath) return ''
-  if (rawPath.startsWith('http')) return rawPath
-  
-  let pathOnly = rawPath
-  let cleaned = pathOnly.replace(/\/upload\/\d+\//, '/upload/')
-  if (cleaned === pathOnly) {
-    cleaned = cleaned.replace(/^\d+\//, '')
-  }
-  if (!cleaned.startsWith('/upload/')) {
-    cleaned = '/upload/' + cleaned.replace(/^\/+/, '')
-  }
-  const base = OSS_BASE_URL.replace(/\/$/, '')
-  return base + cleaned
-}
 
 // ---------- 响应式数据 ----------
 const loading = ref(false)
 const cartList = ref([])
 const totalCount = ref(0)
 const checkedTotalAmount = ref(0)
-const activeAddressId = ref(1) // 💡 临时模拟一个地址ID，供创建订单接口做必填项验证
+
+// 猜你喜欢板块对应的响应式数据（补充声明以防模板报错）
+const randomLoading = ref(false)
+const randomProducts = ref([])
 
 const isAllChecked = computed({
   get() {
@@ -48,22 +30,22 @@ const isAllChecked = computed({
   }
 })
 
-// 数据格式化
+// 🎯 核心修改：弃用原来的老 formatImageUrl，直接调用你的智能路由工具
 const formatCartItem = (item) => ({
   ...item,
   isChecked: item.checked === 1,
-  mainImage: formatImageUrl(item.mainImage)
+  // 传入单品单价和图片，购物车列表一般可以用较小宽度（比如 200）来节省带宽
+  mainImage: optimizeImage(item.mainImage, 200)
 })
 
 // ---------- 获取购物车数据 ----------
 const fetchCart = async () => {
-  loading.value = true
+  // loading.value = true
   try {
     userStore.initGuestId()
 
     const res = await cartApi.getCartList()
   
-    // console.log('--- 购物车接口返回原始数据 ---', res)
     const dataObj = res.data ? res.data : res;
     
     cartList.value = (dataObj.list || []).map(formatCartItem)
@@ -74,7 +56,7 @@ const fetchCart = async () => {
   } catch (err) {
     console.error('获取购物车失败', err)
   } finally {
-    loading.value = false
+    // loading.value = false
   }
 }
 
@@ -88,16 +70,14 @@ const updateQuantity = async (item, action) => {
     alert(`库存不足，最多可购买 ${item.stock} 件`)
     return
   }
-
   try {
-    loading.value = true 
+
     await cartApi.updateCartQuantity(item.skuId, action)
     await fetchCart() 
   } catch (err) {
     console.error('修改数量失败', err)
-  } finally {
-    loading.value = false
   }
+  // 🎯 【核心修改】：删掉了 finally 块里的 loading.value = false
 }
 
 // ---------- 勾选/取消勾选 ----------
@@ -155,27 +135,20 @@ const clearCart = async () => {
   }
 }
 
-const addressList = ref([])
-const paymentMethod = ref(1) // 默认微信支付
-
 const checkout = async () => {
-  // 1. 过滤购物车中被勾选的商品
   const selected = cartList.value.filter(item => item.isChecked)
   if (selected.length === 0) {
     ElMessage.warning('请先选择要结算的商品')
     return
   }
 
-  // 2. 登录拦截检查
   if (!userStore.token) {
     userStore.isLoginVisible = true
     return
   }
 
-  // 3. 把选中的所有 skuId 用逗号拼接成字符串，例如 "101,102"
   const cartIdsStr = selected.map(item => item.skuId).join(',')
 
-  // 4. 带着商品参数，理直气壮地跳转到你的 Checkout 结算页
   router.push({
     path: '/checkout',
     query: { cartIds: cartIdsStr }
@@ -187,6 +160,47 @@ const goToProductDetail = (productId) => {
   router.push(`/product/${productId}`)
 }
 
+// 模拟猜你喜欢里的加入购物车逻辑
+const addToCartFromRandom = async (product, e) => {
+  e.stopPropagation() // 阻止触发卡片跳转详情
+  try {
+    // 假设随机推荐商品默认添加其第一个默认 skuId
+    const targetSkuId = product.skuId || product.id 
+    await cartApi.addToCart({
+      productId: product.id,
+      skuId: targetSkuId,
+      quantity: 1
+    })
+    ElMessage.success('成功加入购物车！')
+    await fetchCart()
+  } catch (err) {
+    console.error('加入购物车失败', err)
+  }
+}
+
+// 控制清空操作的弹窗状态
+const showClearDialog = ref(false)
+const isClearLoading = ref(false)
+
+// 按钮点击：开启弹窗
+const openClearConfirm = () => {
+  showClearDialog.value = true
+}
+
+// 弹窗确认：执行 API
+const handleClearConfirm = async () => {
+  isClearLoading.value = true
+  try {
+    await cartApi.clearCart()
+    await fetchCart(true) // 静默刷新数据
+    ElMessage.success('购物车已清空')
+    showClearDialog.value = false // 关闭弹窗
+  } catch (err) {
+    console.error('清空失败', err)
+  } finally {
+    isClearLoading.value = false
+  }
+}
 // ---------- 生命周期初始化 ----------
 onMounted(async () => {
   userStore.initGuestId()
@@ -195,7 +209,6 @@ onMounted(async () => {
 </script>
 
 <template>
-  <!-- 模板内容与原版完全一致，无需任何改动 -->
   <div class="cart-container">
     <NavBar />
     <main class="main-content">
@@ -223,7 +236,7 @@ onMounted(async () => {
           </div>
 
           <div class="item-image" @click="goToProductDetail(item.productId)">
-            <img :src="item.mainImage || 'https://via.placeholder.com/100x120?text=No+Image'" alt="product" />
+            <img :src="item.mainImage" alt="product" />
           </div>
 
           <div class="item-info">
@@ -260,7 +273,18 @@ onMounted(async () => {
             <span>全选</span>
           </label>
           <span class="total-count">商品总种类：<strong>{{ totalCount }}</strong></span>
-          <button class="clear-btn" :disabled="loading" @click="clearCart">清空购物车</button>
+          <button class="clear-btn" :disabled="loading" @click="openClearConfirm">清空购物车</button>
+          <ModernDialog
+            v-model="showClearDialog"
+            title="清空购物车"
+            confirm-text="确认清空"
+            :loading="isClearLoading"
+            @confirm="handleClearConfirm"
+          >
+            <div style="padding: 10px 0; color: #606266;">
+              清空购物车后将无法恢复，确定要移除所有商品吗？
+            </div>
+          </ModernDialog>
         </div>
 
         <div class="footer-right">
@@ -272,7 +296,7 @@ onMounted(async () => {
         </div>
       </div>
     </main>
-    <!-- 随机商品展示 -->
+
     <section class="recommend-section">
       <div class="recommend-header">
         <h3>猜你喜欢</h3>
@@ -285,7 +309,7 @@ onMounted(async () => {
         <div class="product-card" v-for="product in randomProducts" :key="product.id" @click="goToProductDetail(product.id)">
           <div class="card-img">
             <img
-              :src="product.mainImage || 'https://via.placeholder.com/260x320?text=Product'"
+              :src="optimizeImage(product.mainImage, 400)"
               :alt="product.name || product.title"
             />
             <button class="quick-add-btn" @click="(e) => addToCartFromRandom(product, e)">
@@ -304,57 +328,7 @@ onMounted(async () => {
           </div>
         </div>
       </div>
-
-      <!-- <div v-if="!randomLoading && randomProducts.length === 0" class="empty-recommend">
-        暂无商品
-      </div> -->
     </section>
-
-    <footer class="site-footer">
-      <div class="footer-inner">
-        <div class="footer-links">
-          <div class="link-group">
-            <h4>购物指南</h4>
-            <a href="#">购物流程</a>
-            <a href="#">会员权益</a>
-            <a href="#">积分规则</a>
-          </div>
-          <div class="link-group">
-            <h4>支付与配送</h4>
-            <a href="#">支付方式</a>
-            <a href="#">配送说明</a>
-            <a href="#">运费政策</a>
-          </div>
-          <div class="link-group">
-            <h4>售后服务</h4>
-            <a href="#">退换货政策</a>
-            <a href="#">保修服务</a>
-            <a href="#">联系客服</a>
-          </div>
-          <div class="link-group">
-            <h4>关于我们</h4>
-            <a href="#">品牌故事</a>
-            <a href="#">门店查询</a>
-            <a href="#">加入我们</a>
-          </div>
-          <div class="link-group">
-            <h4>隐私与法律</h4>
-            <a href="#">隐私政策</a>
-            <a href="#">服务条款</a>
-            <a href="#">Cookie声明</a>
-          </div>
-        </div>
-        <div class="footer-copyright">
-          <p>© 2025 购物车示例 | 保留所有权利 | 本网站仅为演示项目</p>
-          <div class="payment-icons">
-            <span>微信支付</span>
-            <span>支付宝</span>
-            <span>银联</span>
-            <span>Visa</span>
-          </div>
-        </div>
-      </div>
-    </footer>
   </div>
 </template>
 

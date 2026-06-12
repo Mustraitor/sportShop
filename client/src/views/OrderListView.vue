@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus'
 import NavBar from '@/components/NavBar.vue'
 import OrderCard from '@/components/OrderCard.vue'
 import { orderApi } from '@/api/order' // 引入重构后的命名空间对象
+import { cartApi } from '@/api/cart' // 引入重构后的命名空间对象
 
 const router = useRouter()
 
@@ -165,14 +166,40 @@ const handleConfirmReceipt = async (order) => {
   }
 }
 
-const handleRebuy = async (order) => {
+//  列表页再次购买：接收当前卡片的 orderItem 对象
+const handleRebuy = async (orderItem) => {
   try {
-    await orderApi.rebuyOrder(order.id)
-    ElMessage.success('已将商品加入购物车')
-  } catch (e) {
-    console.error('再次购买失败:', e)
+    // 1. 安全防御：校验订单内是否有商品明细
+    if (!orderItem || !orderItem.items || orderItem.items.length === 0) {
+      ElMessage.warning('该订单无可购买的商品');
+      return;
+    }
+
+    // 2. 映射出请求 promise 数组
+    const promises = orderItem.items.map((item, index) => {
+      
+      // 提取并确保拿到核心的 skuId
+      const finalSkuId = item.skuId || item.id;
+      
+      const requestData = {
+        productId: item.productId || null, // 如果列表对象里有 productId 就带上，没有就传 null
+        skuId: Number(finalSkuId),
+        quantity: Number(item.quantity || 1)
+      };
+
+      return cartApi.addToCart(requestData);
+    });
+
+    // 3. 并发执行所有 Axios 请求
+    await Promise.all(promises);
+    
+    ElMessage.success('商品已成功重新加入购物车！');
+
+    router.push('/cart');
+  } catch (error) {
+    ElMessage.error('加入购物车失败，请稍后重试');
   }
-}
+};
 
 const handleWriteReview = (order) => {
   ElMessage.info(`评价订单 ${order.id} 的商品`)

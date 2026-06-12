@@ -46,6 +46,9 @@ services:
   # =========================
   # 3. Spring Boot 后端
   # =========================
+  # =========================
+  # 3. Spring Boot 后端
+  # =========================
   sportshop-server:
     build: ./server
     container_name: sportshop-server
@@ -57,16 +60,20 @@ services:
       sportshop-redis:
         condition: service_healthy
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://sportshop-db:3306/sport_shop?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-      SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: 123456
+      # --- 新增这三行，解决乱码 ---
+      - LANG=C.UTF-8
+      - LC_ALL=C.UTF-8
+      - JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8
+      
+      # --- 修改 URL 中的 characterEncoding=UTF-8 ---
+      - SPRING_DATASOURCE_URL=jdbc:mysql://sportshop-db:3306/sport_shop?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=123456
 
-      SPRING_DATA_REDIS_HOST: sportshop-redis
-      SPRING_DATA_REDIS_PORT: 6379
-
-      SPRING_PROFILES_ACTIVE: prod
+      - SPRING_DATA_REDIS_HOST=sportshop-redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_PROFILES_ACTIVE=prod
     restart: always
-
   # =========================
   # 4. Vue 前端 (Nginx)
   # =========================

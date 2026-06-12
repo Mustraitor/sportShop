@@ -110,6 +110,19 @@ export const orderApi = {
       data
     });
   },
+
+  /**
+   * 8. 修改待付款订单的收货地址 (对应 OrderDTO.UpdateAddress)
+   * data 包含: { orderId, addressId }
+   */
+  updateOrderAddress(data) {
+    return request({
+      url: '/order/address',
+      method: 'PUT',
+      data
+    });
+  },
+
   /**
    * 删除订单
    */

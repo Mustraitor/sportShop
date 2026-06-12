@@ -123,36 +123,29 @@ const buildCategoryProductMap = (categories, products) => {
 }
 
 // ==================== ⭐ 核心统一加载函数 ====================
+// 修改 loadAll 中的商品处理部分
 const loadAll = async () => {
   loading.value = true
-
   try {
     const [categoryRes, productRes] = await Promise.all([
       getCategoryList(),
       getProductList({ page: 1, size: 500, status: 1 })
     ])
 
-    // 分类
     tree.value = Array.isArray(categoryRes) ? categoryRes : []
 
-    // 默认 active
     if (!activeId.value && tree.value.length > 0) {
       activeId.value = tree.value[0].id
     }
 
-    // 商品过滤
-    const list = (productRes?.list || []).filter(
-      item => !MISMATCH_PRODUCT_IDS.includes(item.id)
-    )
-
+    // 🎯 核心修改：去掉 .filter(item => !MISMATCH_PRODUCT_IDS.includes(item.id))
+    const list = (productRes?.list || [])
     categoryProductMap.value = buildCategoryProductMap(tree.value, list)
-
   } catch (e) {
     console.error('loadAll error:', e)
     tree.value = []
     categoryProductMap.value = {}
   }
-
   loading.value = false
 }
 
@@ -207,26 +200,26 @@ watch(
         <template v-if="activeCategory">
           <h3 class="pc-group-title">{{ activeCategory.name }}</h3>
           <div v-if="(activeCategory.children || []).length" class="pc-grid">
+          <div
+            v-for="child in (activeCategory.children || [])"
+            :key="child.id"
+            class="pc-card"
+            @click="goCategory(child)" 
+          >
             <div
-              v-for="child in (activeCategory.children || [])"
-              :key="child.id"
-              class="pc-card"
+              class="pc-card-img"
+              :class="{ clickable: !!getCatProduct(child.id)?.productId }"
             >
-              <div
-                class="pc-card-img"
-                :class="{ clickable: !!getCatProduct(child.id)?.productId }"
-                @click.stop="goProduct(child.id)"
-              >
-                <img
-                  v-if="hasRealImage(child.id)"
-                  :src="getCatImg(child.id)"
-                  :alt="child.name"
-                  @error="handleImageError"
-                />
-                <span v-else class="pc-img-ph">{{ child.name.charAt(0) }}</span>
-              </div>
-              <span class="pc-card-name" @click="goCategory(child)">{{ child.name }}</span>
+              <img
+                v-if="hasRealImage(child.id)"
+                :src="getCatImg(child.id)"
+                :alt="child.name"
+                @error="handleImageError"
+              />
+              <span v-else class="pc-img-ph">{{ child.name.charAt(0) }}</span>
             </div>
+            <span class="pc-card-name">{{ child.name }}</span>
+          </div>
           </div>
           <div v-else class="pc-empty">该分类下暂无子分类</div>
         </template>
@@ -444,5 +437,42 @@ watch(
   .pc-sidebar {
     width: 100%;
   }
+}
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .pc-wrapper {
+    flex-direction: column;
+    padding: 10px;
+  }
+
+  /* 侧边栏：变更为顶部横向滚动列表 */
+  .pc-sidebar {
+    width: 100%;
+    height: 50px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    display: flex;
+    border-radius: 0;
+  }
+  
+  .pc-sidebar-title { display: none; } /* 移动端隐藏标题 */
+  .pc-cat-list { display: flex; padding: 0; height: 100%; }
+  .pc-cat-item { 
+    border-bottom: none; 
+    padding: 0 15px; 
+    height: 100%; 
+    flex-shrink: 0;
+  }
+  .pc-divider { display: none; }
+
+  /* 内容区调整 */
+  .pc-content { min-height: auto; width: 100%; }
+  .pc-grid { 
+    grid-template-columns: repeat(2, 1fr); /* 手机端显示 2 列 */
+    gap: 10px;
+  }
+  .pc-card { padding: 8px; }
+  .pc-card-img { width: 50px; height: 50px; }
 }
 </style>

@@ -267,52 +267,7 @@ onUnmounted(() => {
         </div>
       </section>
     </main>
-    <footer v-if="homeStore.activeTab === 'deals'" class="site-footer">
-      <div class="footer-inner">
-        <div class="footer-links">
-          <div class="link-group">
-            <h4>购物指南</h4>
-            <a href="#">购物流程</a>
-            <a href="#">会员权益</a>
-            <a href="#">积分规则</a>
-          </div>
-          <div class="link-group">
-            <h4>支付与配送</h4>
-            <a href="#">支付方式</a>
-            <a href="#">配送说明</a>
-            <a href="#">运费政策</a>
-          </div>
-          <div class="link-group">
-            <h4>售后服务</h4>
-            <a href="#">退换货政策</a>
-            <a href="#">保修服务</a>
-            <a href="#">联系客服</a>
-            <a class="footer-hotline" href="tel:17200697759">售后热线：17200697759</a>
-          </div>
-          <div class="link-group">
-            <h4>关于我们</h4>
-            <a href="#">品牌故事</a>
-            <a href="#">门店查询</a>
-            <a href="#">加入我们</a>
-          </div>
-          <div class="link-group">
-            <h4>隐私与法律</h4>
-            <a href="#">隐私政策</a>
-            <a href="#">服务条款</a>
-            <a href="#">Cookie声明</a>
-          </div>
-        </div>
-        <div class="footer-copyright">
-          <p>© 2025 迪卡侬购物车示例 | 保留所有权利 | 本网站仅为演示项目</p>
-          <div class="payment-icons">
-            <span>微信支付</span>
-            <span>支付宝</span>
-            <span>银联</span>
-            <span>Visa</span>
-          </div>
-        </div>
-      </div>
-    </footer>
+
   </div>
 </template>
 
@@ -329,7 +284,7 @@ onUnmounted(() => {
 .main-content-wrapper {
   flex: 1; 
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 20px;
 }
@@ -532,7 +487,7 @@ onUnmounted(() => {
 }
 
 .carousel-wrapper {
-  width: 1160px;
+  width: 100%;
   max-width: 100%;
   margin: 0 auto;
   border-radius: 8px;
@@ -540,7 +495,7 @@ onUnmounted(() => {
 }
 
 .my-swiper {
-  width: 1160px;
+  width: 100%;
   max-width: 100%;
   height: 500px;
 }
@@ -588,55 +543,61 @@ onUnmounted(() => {
 }
 // swiper
 .carousel-wrapper {
+  /* 导航按钮大小配置 */
   :deep(.swiper) {
-    --swiper-navigation-size: 16px;
-    --swiper-navigation-sides-offset: 15px;
+    --swiper-navigation-size: 10px;
+    --swiper-navigation-sides-offset: 10px;
   }
 
+  /* 导航按钮基础样式：改为极简风格 */
   :deep(.swiper-button-prev),
   :deep(.swiper-button-next) {
-    color: #555;
-    width: 36px;
-    height: 36px;
+    color: #ffffff; /* 默认为白色，在 Banner 图上更清晰 */
+    width: 44px;
+    height: 44px;
+    background: rgba(0, 0, 0, 0.2); /* 仅用极淡的黑色遮罩，而不是突兀的白底 */
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(4px);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    border: 1px solid #e8e8e8;
-
-    display: flex;
-    justify-content: center;
-    align-items: center;
-
-    opacity: 0;
-    transform: scale(0.85);
-    transition: all 0.25s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0; /* 默认隐藏 */
+    transform: translateX(10px); /* 默认带一点偏移 */
   }
+  
+  :deep(.swiper-button-prev) { transform: translateX(-10px); }
 
+  /* 交互效果：Hover 时显示并回到中心 */
   &:hover {
     :deep(.swiper-button-prev),
     :deep(.swiper-button-next) {
       opacity: 1;
-      transform: scale(1);
+      transform: translateX(0);
     }
+  }
 
-    :deep(.swiper-button-prev:hover),
-    :deep(.swiper-button-next:hover) {
-      background: #0056b3;
-      color: #fff;
-      border-color: #0056b3;
-      box-shadow: 0 4px 12px rgba(0, 86, 179, 0.3);
-      transform: scale(1.08);
-    }
+  /* 悬停时的精致交互 */
+  :deep(.swiper-button-prev:hover),
+  :deep(.swiper-button-next:hover) {
+    background: rgba(0, 0, 0, 0.5) !important; /* 悬停时稍微加深，不需要蓝色 */
+    transform: scale(1.1);
   }
 
   :deep(.swiper-button-disabled) {
     opacity: 0 !important;
-    pointer-events: none;
   }
 }
+
+/* 分页器样式：改为更细小的圆点，符合极简感 */
+:deep(.swiper-pagination-bullet) {
+  width: 8px;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.5);
+  transition: all 0.3s;
+}
+
 :deep(.swiper-pagination-bullet-active) {
-  background: #0056b3;
+  background: #ffffff;
+  width: 20px; /* 活跃态变长，更有质感 */
+  border-radius: 4px;
 }
 // 品类
 .season-category-wrap {
@@ -754,79 +715,6 @@ onUnmounted(() => {
     }
   }
 }
-// 页脚
-.site-footer {
-  background: #2c3e50;
-  color: #ecf0f1;
-  padding: 40px 0 20px;
-  margin-top: 40px;
-  width: 100%;
-
-  .footer-inner {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 20px;
-  }
-
-  .footer-links {
-    display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 30px;
-    margin-bottom: 30px;
-
-    .link-group {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-
-      h4 {
-        font-size: 16px;
-        font-weight: bold;
-        color: #fff;
-      }
-
-      a {
-        color: #bdc3c7;
-        text-decoration: none;
-        font-size: 14px;
-        transition: color 0.2s;
-
-        &:hover {
-          color: #3498db;
-        }
-      }
-    }
-  }
-
-  .footer-copyright {
-    border-top: 1px solid #34495e;
-    padding-top: 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-
-    p {
-      margin: 0;
-      font-size: 13px;
-      color: #95a5a6;
-    }
-  }
-
-  .payment-icons {
-    display: flex;
-    gap: 20px;
-
-    span {
-      font-size: 14px;
-      color: #bdc3c7;
-      background: #34495e;
-      padding: 6px 12px;
-      border-radius: 4px;
-    }
-  }
-}
 
 
 @media (max-width: 1200px) {
@@ -862,4 +750,3 @@ onUnmounted(() => {
   }
 }
 </style>
-

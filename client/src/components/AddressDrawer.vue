@@ -254,6 +254,19 @@ const setAsDefault = async (addr) => {
 }
 
 const handleDelete = (id) => {
+  // 🎯 核心防御：如果这个地址是当前用户选中的订单地址，直接拦截，不给删！
+  if (Number(id) === Number(props.modelValue)) {
+    ElMessageBox.alert(
+      '该地址是当前订单正在使用的收货地址，无法直接删除！请先切换到其他地址后再试。', 
+      '拒绝操作', 
+      {
+        confirmButtonText: '知道了',
+        type: 'error'
+      }
+    );
+    return; // 强行中断逻辑
+  }
+
   ElMessageBox.confirm('确定要彻底移除该收货地址吗？', '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',

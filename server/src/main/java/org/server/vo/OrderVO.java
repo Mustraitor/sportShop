@@ -9,6 +9,16 @@ import java.util.List;
 
 public class OrderVO {
 
+    // ==========================================
+    // 🎯 核心新增：封装前端所需要的收货人对象
+    // ==========================================
+    @Data
+    public static class ReceiverInfo {
+        private String name;
+        private String phone;
+        private String address; // 由 省+市+区+详细地址 拼接而成的完整字符串
+    }
+
     /**
      * 订单分页大对象 (data)
      */
@@ -32,6 +42,9 @@ public class OrderVO {
 
         // 该订单包含的紧凑版商品明细
         private List<ItemMin> items;
+
+        // 💡 可选新增：如果订单列表页也需要显示收货人名字，可以加上
+        private ReceiverInfo receiver;
     }
 
     /**
@@ -51,7 +64,7 @@ public class OrderVO {
     public static class Detail {
         private Long id;
         private Long userId;
-        private Long addressId;
+        private Long addressId; // 保持不动，作为逻辑外键来源留给前端做对比
         private BigDecimal totalAmount;
         private BigDecimal payAmount;
         private Integer status;
@@ -62,6 +75,10 @@ public class OrderVO {
 
         // 该订单下的所有商品明细
         private List<OrderItem> items;
+
+        // 👇 🎯 核心新增：直接在详情响应中注入 receiver 快照结构
+        // 这样前端就不需要换字段，依然可以用 order.receiver.name 读取，完美解耦！
+        private ReceiverInfo receiver;
     }
 
     /**
@@ -72,6 +89,7 @@ public class OrderVO {
         private String productName;
         private String skuName;
         private Integer quantity;
+        private String mainImage;
     }
 
     /**
@@ -86,6 +104,7 @@ public class OrderVO {
         @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
         private LocalDateTime updatedAt;
     }
+
     /**
      * 发货返回结果
      */

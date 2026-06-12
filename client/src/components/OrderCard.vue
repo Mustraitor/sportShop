@@ -19,7 +19,7 @@
         class="goods-item"
       >
         <img 
-          :src="item.mainImage || item.picUrl || item.img ? formatImageUrl(item.mainImage || item.picUrl || item.img) : 'https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/upload/default.png'" 
+          :src="getGoodsImage(item)" 
           class="goods-img" 
         />
         
@@ -84,6 +84,8 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { orderApi } from '@/api/order' 
+// 🎯 核心修改 1：引入你的图片智能路由工具（请根据你的实际目录调整路径）
+import { optimizeImage } from '@/utils/image' 
 
 const props = defineProps({ 
   order: { type: Object, required: true } 
@@ -96,11 +98,19 @@ defineEmits([
 const showAll = ref(false)
 const OSS_BASE_URL = 'https://sportshop-pictures.oss-cn-beijing.aliyuncs.com/'
 
-// 图片路径格式化
-const formatImageUrl = (rawPath) => {
-  if (!rawPath) return ''
-  if (rawPath.startsWith('http')) return rawPath
-  return OSS_BASE_URL.replace(/\/$/, '') + '/' + rawPath.replace(/^\/+/, '')
+// 🎯 核心修改 2：整合原有的 formatImageUrl 和新引入的 optimizeImage
+const getGoodsImage = (item) => {
+  // 后端新字段优先，兼容旧字段
+  const rawPath = item.mainImage || item.picUrl || item.img
+  
+  // 如果数据库或接口中完全没有图片字段，直接给 OSS 的默认兜底图
+  if (!rawPath) return `${OSS_BASE_URL}upload/default.png`
+  
+  // 1. 统一补全为绝对路径
+  const fullUrl = rawPath.startsWith('http') 
+    ? rawPath 
+    : `${OSS_BASE_URL.replace(/\/$/, '')}/${rawPath.replace(/^\/+/, '')}`
+  return optimizeImage(fullUrl, 200) 
 }
 
 // 统一使用接口的 items 字段
