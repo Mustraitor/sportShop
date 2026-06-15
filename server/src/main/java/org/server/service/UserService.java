@@ -20,4 +20,14 @@ public interface UserService {
     UserVO updateUserInfo(Long userId, UserDTO.UpdateInfo updateInfo);
 
     void register(UserDTO.UserRegisterDTO registerDTO);
+
+    /**
+     * 根据手机号查询用户
+     */
+    User findByPhonenumber(String phonenumber);
+
+    /**
+     * 根据手机号查找或创建用户（自动注册）
+     */
+    User findOrCreateByPhonenumber(String phonenumber);
 }

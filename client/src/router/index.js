@@ -58,11 +58,25 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: '/AIChat',
+      component: () => import("../views/AIChatView.vue"),
+      meta: { requiresAuth: false }
+    },
+    {
       path: "/:pathMatch(.*)*",
       name: "NotFound",
       component: () => import("@/views/NotFoundView.vue")
     }
   ],
+  scrollBehavior(to, from, savedPosition) {
+    // 如果有保存的位置（比如点击浏览器的“前进/后退”按钮），则恢复到之前的位置
+    if (savedPosition) {
+      return savedPosition
+    } else {
+      // 否则，所有导航一律滚动到顶部
+      return { top: 0, behavior: 'smooth' } // 'smooth' 代表平滑滚动，如果不想要动画可以改成 'auto'
+    }
+  }
 })
 // 全局路由守卫
 router.beforeEach((to, from, next) => {

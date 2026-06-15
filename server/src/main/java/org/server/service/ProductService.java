@@ -4,6 +4,8 @@ import org.server.dto.ProductDTO;
 import org.server.vo.PageResult;
 import org.server.vo.ProductVO;
 
+import java.util.List;
+
 public interface ProductService {
 
     /**
@@ -20,4 +22,6 @@ public interface ProductService {
     void updateProduct(Long id, ProductDTO.Update updateDTO);
 
     void deleteProductById(Long id);
+
+    List<ProductVO.Simple> searchByKeyword(String keyword);
 }

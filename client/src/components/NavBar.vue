@@ -123,7 +123,7 @@ onMounted(() => {
               :src="userStore.userInfo?.avatar || 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png'" 
               alt="avatar"
             />
-            <div class="user-name">{{ userStore.userInfo?.userName }}</div>
+            <div class="user-name">{{ userStore.userInfo?.nickName }}</div>
           </div>
           <div class="dropdown-content">
             <div class="dropdown-item" @click="router.push('/profile')">个人中心</div>

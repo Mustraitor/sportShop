@@ -1,6 +1,5 @@
 package org.server.service.impl;
 
-import cn.hutool.core.util.RandomUtil;
 import com.aliyun.sdk.service.dypnsapi20170525.AsyncClient;
 import com.aliyun.sdk.service.dypnsapi20170525.models.SendSmsVerifyCodeRequest;
 import com.aliyun.sdk.service.dypnsapi20170525.models.SendSmsVerifyCodeResponse;
@@ -38,8 +37,9 @@ public class SmsServiceImpl implements SmsService {
 
     @Override
     public void sendSmsCode(SmsSendDTO dto) throws Exception {
-        String phone = dto.getPhoneNumber();
+        String phone = dto.getPhoneNumber().trim();
         String scene = dto.getScene();
+        log.info("发送验证码：手机号={}, 场景={}", phone, scene);
 
         // 1. 频率限制防刷
         String freqKey = "sms:freq:" + phone + ":" + scene;
@@ -78,17 +78,22 @@ public class SmsServiceImpl implements SmsService {
             log.error("短信发送失败，手机号：{}，错误：{}", phone, errorMsg);
             throw new RuntimeException("短信发送失败：" + errorMsg);
         }
+        log.info("短信发送成功，手机号={}，验证码={}，key=sms:code:{}:{}", phone, code, phone, scene);
     }
 
     @Override
     public boolean verifyCode(String phone, String scene, String inputCode) {
-        String codeKey = "sms:code:" + phone + ":" + scene;
+        String trimmedPhone = phone.trim();
+        String codeKey = "sms:code:" + trimmedPhone + ":" + scene;
+        log.info("验证验证码：key={}, 输入code={}", codeKey, inputCode);
         String savedCode = redisTemplate.opsForValue().get(codeKey);
-        if (savedCode != null && savedCode.equals(inputCode)) {
-            // 验证通过后立即删除验证码，防止重复使用
+        log.info("Redis中保存的验证码={}", savedCode);
+        if (savedCode != null && savedCode.equals(inputCode.trim())) {
             redisTemplate.delete(codeKey);
+            log.info("验证成功，已删除key");
             return true;
         }
+        log.warn("验证失败：savedCode={}, inputCode={}", savedCode, inputCode);
         return false;
     }
 }

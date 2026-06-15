@@ -175,8 +175,7 @@ watch(
             :key="item.id"
             class="pc-cat-item"
             :class="{ active: activeId === item.id }"
-            @mouseenter="setActive(item.id)"
-            @click="goCategory(item)"
+            @click="setActive(item.id)"
           >
             <span class="pc-cat-name">{{ item.name }}</span>
             <span class="pc-arrow">›</span>
@@ -199,28 +198,30 @@ watch(
       <main class="pc-content" v-loading="loading">
         <template v-if="activeCategory">
           <h3 class="pc-group-title">{{ activeCategory.name }}</h3>
+          
           <div v-if="(activeCategory.children || []).length" class="pc-grid">
-          <div
-            v-for="child in (activeCategory.children || [])"
-            :key="child.id"
-            class="pc-card"
-            @click="goCategory(child)" 
-          >
             <div
-              class="pc-card-img"
-              :class="{ clickable: !!getCatProduct(child.id)?.productId }"
+              v-for="child in activeCategory.children"
+              :key="child.id"
+              class="pc-card"
+              @click="goCategory(child)" 
             >
-              <img
-                v-if="hasRealImage(child.id)"
-                :src="getCatImg(child.id)"
-                :alt="child.name"
-                @error="handleImageError"
-              />
-              <span v-else class="pc-img-ph">{{ child.name.charAt(0) }}</span>
+              <div
+                class="pc-card-img"
+                :class="{ clickable: !!getCatProduct(child.id)?.productId }"
+              >
+                <img
+                  v-if="hasRealImage(child.id)"
+                  :src="getCatImg(child.id)"
+                  :alt="child.name"
+                  @error="handleImageError"
+                />
+                <span v-else class="pc-img-ph">{{ child.name.charAt(0) }}</span>
+              </div>
+              <span class="pc-card-name">{{ child.name }}</span>
             </div>
-            <span class="pc-card-name">{{ child.name }}</span>
           </div>
-          </div>
+          
           <div v-else class="pc-empty">该分类下暂无子分类</div>
         </template>
         <div v-else class="pc-empty">暂无分类数据</div>
@@ -228,7 +229,7 @@ watch(
     </div>
   </div>
 </template>
-<style scoped>
+<style scoped lang="scss">
 .pc-page {
   width: 100%;
   min-height: 100vh;
@@ -236,12 +237,18 @@ watch(
 }
 
 .pc-wrapper {
-  max-width: 1200px;
+  max-width: 1500px;
   margin: 0 auto;
   padding: 20px;
   display: flex;
   align-items: flex-start;
   gap: 20px;
+
+  /* 移动端适配 */
+  @media (max-width: 768px) {
+    flex-direction: column;
+    padding: 10px;
+  }
 }
 
 .pc-sidebar {
@@ -251,6 +258,17 @@ watch(
   border: 1px solid #e8e8e8;
   border-radius: 8px;
   overflow: hidden;
+
+  /* 侧边栏：变更为顶部横向滚动列表 */
+  @media (max-width: 768px) {
+    width: 100%;
+    height: 50px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    display: flex;
+    border-radius: 0;
+  }
 }
 
 .pc-sidebar-title {
@@ -260,10 +278,20 @@ watch(
   color: #333;
   border-bottom: 1px solid #e8e8e8;
   background: #fff;
+
+  @media (max-width: 768px) {
+    display: none; /* 移动端隐藏标题 */
+  }
 }
 
 .pc-cat-list {
   padding: 8px 0;
+
+  @media (max-width: 768px) {
+    display: flex;
+    padding: 0;
+    height: 100%;
+  }
 }
 
 .pc-cat-item {
@@ -276,10 +304,33 @@ watch(
   cursor: pointer;
   transition: all 0.2s;
   border-bottom: 1px solid #efefef;
-}
 
-.pc-cat-item:last-child {
-  border-bottom: none;
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:first-child {
+    font-weight: 600;
+  }
+
+  &:hover,
+  &.active {
+    background-color: #fff;
+    color: #0056b3;
+    font-weight: 600;
+
+    .pc-arrow {
+      opacity: 1;
+      color: #0056b3;
+    }
+  }
+
+  @media (max-width: 768px) {
+    border-bottom: none;
+    padding: 0 15px;
+    height: 100%;
+    flex-shrink: 0;
+  }
 }
 
 .pc-cat-name {
@@ -293,52 +344,47 @@ watch(
   transition: opacity 0.2s;
 }
 
-.pc-cat-item:hover,
-.pc-cat-item.active {
-  background-color: #fff;
-  color: #0056b3;
-  font-weight: 600;
-}
-
-.pc-cat-item.active .pc-arrow,
-.pc-cat-item:hover .pc-arrow {
-  opacity: 1;
-  color: #0056b3;
-}
-
-.pc-cat-item:first-child {
-  color: #000;
-  font-weight: 600;
-}
-
 .pc-divider {
   height: 1px;
   background-color: #ddd;
   margin: 6px 16px;
+
+  @media (max-width: 768px) {
+    display: none;
+  }
 }
 
 .pc-link {
   color: #888;
-}
-.pc-link .pc-arrow {
-  display: none;
-}
-.pc-link.special {
-  color: #d32f2f;
-  font-weight: 700;
-}
-.pc-link:hover {
-  color: #0056b3;
-  font-weight: 600;
-  background-color: #fff;
-}
-.pc-link.special:hover {
-  color: #b71c1c;
+
+  .pc-arrow {
+    display: none;
+  }
+
+  &:hover {
+    color: #0056b3;
+    font-weight: 600;
+    background-color: #fff;
+  }
+
+  &.special {
+    color: #d32f2f;
+    font-weight: 700;
+
+    &:hover {
+      color: #b71c1c;
+    }
+  }
 }
 
 .pc-content {
   flex: 1;
   min-height: 500px;
+
+  @media (max-width: 768px) {
+    min-height: auto;
+    width: 100%;
+  }
 }
 
 .pc-group-title {
@@ -354,6 +400,15 @@ watch(
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 14px;
+
+  @media (max-width: 992px) {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(2, 1fr); /* 手机端显示 2 列 */
+    gap: 10px;
+  }
 }
 
 .pc-card {
@@ -366,12 +421,16 @@ watch(
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.25s;
-}
 
-.pc-card:hover {
-  border-color: #0056b3;
-  box-shadow: 0 4px 12px rgba(0, 86, 179, 0.12);
-  transform: translateY(-2px);
+  &:hover {
+    border-color: #0056b3;
+    box-shadow: 0 4px 12px rgba(0, 86, 179, 0.12);
+    transform: translateY(-2px);
+  }
+
+  @media (max-width: 768px) {
+    padding: 8px;
+  }
 }
 
 .pc-card-img {
@@ -384,20 +443,25 @@ watch(
   align-items: center;
   justify-content: center;
   overflow: hidden;
-}
 
-.pc-card-img.clickable {
-  cursor: pointer;
-}
+  &.clickable {
+    cursor: pointer;
 
-.pc-card-img.clickable:hover {
-  box-shadow: 0 2px 8px rgba(0, 86, 179, 0.2);
-}
+    &:hover {
+      box-shadow: 0 2px 8px rgba(0, 86, 179, 0.2);
+    }
+  }
 
-.pc-card-img img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  @media (max-width: 768px) {
+    width: 50px;
+    height: 50px;
+  }
 }
 
 .pc-img-ph {
@@ -411,10 +475,10 @@ watch(
   color: #333;
   line-height: 1.4;
   cursor: pointer;
-}
 
-.pc-card-name:hover {
-  color: #0056b3;
+  &:hover {
+    color: #0056b3;
+  }
 }
 
 .pc-empty {
@@ -422,57 +486,5 @@ watch(
   color: #999;
   padding: 120px 0;
   font-size: 15px;
-}
-
-@media (max-width: 992px) {
-  .pc-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .pc-wrapper {
-    flex-direction: column;
-  }
-  .pc-sidebar {
-    width: 100%;
-  }
-}
-/* 移动端适配 */
-@media (max-width: 768px) {
-  .pc-wrapper {
-    flex-direction: column;
-    padding: 10px;
-  }
-
-  /* 侧边栏：变更为顶部横向滚动列表 */
-  .pc-sidebar {
-    width: 100%;
-    height: 50px;
-    overflow-x: auto;
-    overflow-y: hidden;
-    white-space: nowrap;
-    display: flex;
-    border-radius: 0;
-  }
-  
-  .pc-sidebar-title { display: none; } /* 移动端隐藏标题 */
-  .pc-cat-list { display: flex; padding: 0; height: 100%; }
-  .pc-cat-item { 
-    border-bottom: none; 
-    padding: 0 15px; 
-    height: 100%; 
-    flex-shrink: 0;
-  }
-  .pc-divider { display: none; }
-
-  /* 内容区调整 */
-  .pc-content { min-height: auto; width: 100%; }
-  .pc-grid { 
-    grid-template-columns: repeat(2, 1fr); /* 手机端显示 2 列 */
-    gap: 10px;
-  }
-  .pc-card { padding: 8px; }
-  .pc-card-img { width: 50px; height: 50px; }
 }
 </style>

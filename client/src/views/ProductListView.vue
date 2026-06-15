@@ -26,7 +26,7 @@
                 @click="toggleExpand(root.id)"
               >
                 {{ root.name }}
-                <span class="arrow-icon">{{ expandedId === root.id ? '▼' : '▶' }}</span>
+                <span class="arrow-icon">{{ expandedId === root.id ? '▼' : '›' }}</span>
               </div>
               
               <transition name="fade">
@@ -49,13 +49,14 @@
           </ul>
         </aside>
 
-        <main class="main">
+        <main class="main"> 
           <div class="main-header">
             <div class="title-area">
               <h2 class="cat-name">{{ currentName }}</h2>
-              <span class="total-count" v-if="!loading">共 {{ total }} 件商品</span>
+              <span class="total-count" v-if="!loading && !hasSubCategories">共 {{ total }} 件商品</span>
             </div>
-            <div class="sort-bar">
+            
+            <div class="sort-bar" v-if="!hasSubCategories">
               <span
                 v-for="opt in sortOptions"
                 :key="opt.value"
@@ -66,48 +67,76 @@
             </div>
           </div>
 
-          <div class="quick-children" v-if="quickChildren.length">
-            <span
-              v-for="c in quickChildren"
-              :key="c.id"
-              class="quick-chip"
-              @click="goCategory(c)"
-            >{{ c.name }}</span>
-          </div>
-
-          <div v-if="loading" class="state-box">加载中...</div>
-
-          <div v-else-if="!products.length" class="state-box">
-            该分类下暂无商品
-          </div>
-
-          <div v-else class="product-grid">
-            <div
-              v-for="item in products"
-              :key="item.id"
-              class="product-card"
-              @click="goDetail(item.id)"
-            >
-              <div class="img-box">
-                <img 
-                  :src="optimizeImage(item.mainImage || item.picUrl || item.img, 400)" 
-                  :alt="item.name" 
-                  @error="onImgError" 
-                />
-                <span v-if="item.status === 0" class="off-shelf">已下架</span>
-              </div>
-              <div class="info">
-                <div class="name" :title="item.name">{{ item.name }}</div>
-                <div class="price">¥{{ formatPrice(item.price) }}</div>
+          <template v-if="hasSubCategories">
+            <div class="pc-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; padding: 20px 0;">
+              <div
+                v-for="child in quickChildren"
+                :key="child.id"
+                class="pc-card"
+                style="display: flex; flex-direction: column; align-items: center; cursor: pointer; background: #fff; padding: 15px; border-radius: 8px; transition: transform 0.2s;"
+                @click="goCategory(child)" 
+              >
+                <div class="pc-card-img" style="width: 120px; height: 120px; display: flex; align-items: center; justify-content: center; background: #f8f9fa; border-radius: 6px; overflow: hidden; margin-bottom: 10px;">
+                  <img
+                    v-if="child.mainImage || child.picUrl || child.img || categoryProductMap[child.id]"
+                    :src="getCatImg(child)"
+                    :alt="child.name"
+                    style="width: 100%; height: 100%; object-fit: cover;"
+                    @error="handleImageError"
+                  />
+                  <span v-else class="pc-img-ph" style="font-size: 24px; color: #999; font-weight: bold;">
+                    {{ child.name.charAt(0) }}
+                  </span>
+                </div>
+                <span class="pc-card-name" style="font-size: 14px; color: #333; font-weight: 500;">{{ child.name }}</span>
               </div>
             </div>
-          </div>
+          </template>
 
-          <div v-if="!loading && pages > 1" class="pagination">
-            <button class="page-btn" :disabled="page <= 1" @click="changePage(page - 1)">上一页</button>
-            <span class="page-info">{{ page }} / {{ pages }}</span>
-            <button class="page-btn" :disabled="page >= pages" @click="changePage(page + 1)">下一页</button>
-          </div>
+          <template v-else>
+            <div class="quick-children" v-if="quickChildren.length">
+              <span
+                v-for="c in quickChildren"
+                :key="c.id"
+                class="quick-chip"
+                @click="goCategory(c)"
+              >{{ c.name }}</span>
+            </div>
+
+            <div v-if="loading" class="state-box">加载中...</div>
+
+            <div v-else-if="!products.length" class="state-box">
+              该分类下暂无商品
+            </div>
+
+            <div v-else class="product-grid">
+              <div
+                v-for="item in products"
+                :key="item.id"
+                class="product-card"
+                @click="goDetail(item.id)"
+              >
+                <div class="img-box">
+                  <img 
+                    :src="optimizeImage(item.mainImage || item.picUrl || item.img, 400)" 
+                    :alt="item.name" 
+                    @error="onImgError" 
+                  />
+                  <span v-if="item.status === 0" class="off-shelf">已下架</span>
+                </div>
+                <div class="info">
+                  <div class="name" :title="item.name">{{ item.name }}</div>
+                  <div class="price">¥{{ formatPrice(item.price) }}</div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="!loading && pages > 1" class="pagination">
+              <button class="page-btn" :disabled="page <= 1" @click="changePage(page - 1)">上一页</button>
+              <span class="page-info">{{ page }} / {{ pages }}</span>
+              <button class="page-btn" :disabled="page >= pages" @click="changePage(page + 1)">下一页</button>
+            </div>
+          </template>
         </main>
       </div>
     </div>
@@ -121,7 +150,6 @@ import NavBar from '@/components/NavBar.vue'
 import { getCategoryList } from '@/api/category'
 import { getProductList } from '@/api/product'
 
-// 💡 优化 2：导入统一的图片智能路由函数和全局默认占位图
 import { optimizeImage, defaultPlaceholder } from '@/utils/image'
 
 const route = useRoute()
@@ -136,6 +164,9 @@ const size = ref(12)
 const sort = ref('default')
 const loading = ref(false)
 
+// 🌟 修改点 2：定义存储借用图片的字典
+const categoryProductMap = ref({})
+
 const sortOptions = [
   { label: '综合', value: 'default' },
   { label: '价格从低到高', value: 'price_asc' },
@@ -144,7 +175,6 @@ const sortOptions = [
 
 const activeId = computed(() => Number(route.params.id))
 
-// 扁平化查找节点
 const findNode = (nodes, id) => {
   for (const n of nodes) {
     if (n.id === id) return n
@@ -156,7 +186,6 @@ const findNode = (nodes, id) => {
   return null
 }
 
-// 查找从根到目标节点的路径（用于面包屑）
 const findPath = (nodes, id, path = []) => {
   for (const n of nodes) {
     const next = [...path, n]
@@ -172,18 +201,58 @@ const findPath = (nodes, id, path = []) => {
 const currentNode = computed(() => findNode(tree.value, activeId.value))
 const currentName = computed(() => currentNode.value?.name || route.query.name || '全部商品')
 const breadcrumb = computed(() => findPath(tree.value, activeId.value) || [])
-// 当前分类的直接子分类，作为快捷筛选项
 const quickChildren = computed(() => currentNode.value?.children || [])
+
+const hasSubCategories = computed(() => {
+  const children = currentNode.value?.children
+  return Array.isArray(children) && children.length > 0
+})
 
 const formatPrice = (p) => {
   const num = Number(p)
   return isNaN(num) ? p : num.toFixed(2)
 }
 
-// 💡 优化 3：图片裂开时，使用全局对齐的 defaultPlaceholder 替代原本的 dummyimage 链接
 const onImgError = (e) => {
   e.target.onerror = null
   e.target.src = defaultPlaceholder
+}
+
+// 🌟 修改点 3：加上抓取商品图片赋给分类的逻辑
+const collectDescendantIds = (node) => {
+  const ids = [node.id]
+  node.children?.forEach(child => {
+    ids.push(...collectDescendantIds(child))
+  })
+  return ids
+}
+
+const buildCategoryProductMap = (categories, productsData) => {
+  if (!categories?.length || !productsData?.length) return {}
+  const directMap = {}
+  
+  // 遍历所有商品，提取它的主图并绑定给它对应的分类ID
+  productsData.forEach(p => {
+    const actualImage = p.mainImage || p.picUrl || p.img
+    if (p.categoryId && actualImage && !directMap[p.categoryId]) {
+      directMap[p.categoryId] = actualImage
+    }
+  })
+  
+  const map = {}
+  // 递归处理：如果一个分类本身没有图片，就从它的子孙分类（包含的商品）里借一张
+  const walk = (node) => {
+    const ids = collectDescendantIds(node)
+    for (const id of ids) {
+      if (directMap[id]) {
+        map[node.id] = directMap[id]
+        break
+      }
+    }
+    node.children?.forEach(walk)
+  }
+  categories.forEach(walk)
+  return map
 }
 
 const loadProducts = async () => {
@@ -234,24 +303,39 @@ const changePage = (p) => {
 
 onMounted(async () => {
   try {
-    tree.value = await getCategoryList() || []
+    // 🌟 修改点 4：初始化时顺带查前500个商品来收集图片
+    const [catRes, prodRes] = await Promise.all([
+      getCategoryList(),
+      getProductList({ page: 1, size: 500, status: 1 }) 
+    ])
+    tree.value = catRes || []
+    categoryProductMap.value = buildCategoryProductMap(tree.value, prodRes?.list || [])
   } catch (e) {
     tree.value = []
   }
   loadProducts()
 })
-const expandedId = ref(null) // 记录当前展开的一级分类 ID
+
+const expandedId = ref(null)
 
 const toggleExpand = (id) => {
-  // 如果点击的是已经展开的，就闭合；否则展开当前点击的
   expandedId.value = (expandedId.value === id) ? null : id
 }
 
-// 💡 进阶：如果路由切换了，自动展开对应的分类
+// 从 categoryProductMap 字典里取值
+const getCatImg = (item) => {
+  const img = item.mainImage || item.picUrl || item.img || categoryProductMap.value[item.id]
+  return img ? optimizeImage(img, 240) : defaultPlaceholder
+}
+
+const handleImageError = (e) => {
+  e.target.onerror = null
+  e.target.src = defaultPlaceholder
+}
+
 watch(() => route.path, () => {
-  // 假设你想根据当前路由自动展开父级，可以在这里写逻辑
 }, { immediate: true })
-// 切换分类时重置分页并重新加载
+
 watch(activeId, () => {
   page.value = 1
   sort.value = 'default'
@@ -269,7 +353,7 @@ watch(activeId, () => {
 }
 
 .list-wrapper {
-  max-width: 1200px;
+  max-width: 1500px;
   margin: 0 auto;
   padding: 20px;
 }
@@ -490,7 +574,7 @@ watch(activeId, () => {
 
 @media (max-width: 768px) {
   .content-grid { grid-template-columns: 1fr; }
-  .sidebar { position: static; }
+  .sidebar { position: static; display:none; }
 }
 .cat-tree { list-style: none; padding: 0; margin: 0; }
 .root-item { border-bottom: 1px solid #eee; }

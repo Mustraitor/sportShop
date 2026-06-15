@@ -28,11 +28,11 @@
           <div class="member-name">迪卡侬会员{{ userInfo.userName || '73086784' }}</div>
           <div class="member-id">会员号 {{ userInfo.memberId || '2093620852256' }}</div>
         </div>
-        <div class="banner-points">
+        <!-- <div class="banner-points">
           <span class="points-label">我的燃值</span>
           <el-icon><RefreshRight /></el-icon>
           <span class="points-value">0</span>
-        </div>
+        </div> -->
       </div>
 
       <div v-if="activeNav === 'home'" class="home-cards">
@@ -108,7 +108,7 @@
               <el-input v-model="userInfo.email" placeholder="example@domain.com" />
             </el-form-item>
             <el-form-item label="手机号码" prop="phonenumber">
-              <el-input v-model="userInfo.phonenumber" placeholder="请输入11位手机号" maxlength="11" show-word-limit />
+              <el-input v-model="userInfo.phonenumber"  />
             </el-form-item>
             <el-form-item label="性别">
               <el-radio-group v-model="userInfo.sex">
@@ -232,8 +232,11 @@
           <el-cascader
             v-model="addressForm.areaCascader"
             :options="pcaOptions"
-            placeholder="请选择 省 / 市 / 区"
-            style="width: 100%"
+            :props="{
+              value: 'label',
+              label: 'label',
+              emitPath: true
+            }"
             @change="handleAreaChange"
           />
         </el-form-item>
@@ -261,23 +264,27 @@ import {
   User, Location, ShoppingCart, Collection,
   Timer, RefreshRight, Grid, WarningFilled, House, Wallet
 } from '@element-plus/icons-vue'
-import request from '@/utils/request'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { regionData } from 'element-china-area-data'
+import { useUserStore } from '@/stores/user' 
 
+import { getAuthInfoApi, updateUserInfoApi } from '@/api/user'
+import { addressApi } from '@/api/address'
+import { ElMessage, ElMessageBox } from 'element-plus'
+const pcaOptions = regionData
+const userStore = useUserStore() 
 const navItems = [
   { key: 'home',      label: '我的首页',   icon: 'User' },
   { key: 'info',      label: '个人信息',   icon: 'User' },
   { key: 'wallet',    label: '我的钱包',   icon: 'Wallet' },
   { key: 'address',   label: '地址管理',   icon: 'Location' },
-  { key: 'orders',    label: '购买记录',   icon: 'ShoppingCart' },
-  { key: 'favorites', label: '收藏夹',     icon: 'Collection' },
-  { key: 'history',   label: '历史浏览',   icon: 'Timer' },
+  // { key: 'orders',    label: '购买记录',   icon: 'ShoppingCart' },
+  // { key: 'favorites', label: '收藏夹',     icon: 'Collection' },
+  // { key: 'history',   label: '历史浏览',   icon: 'Timer' },
 ]
 
 const activeNav = ref('home')
 const isEdit = ref(false)
 const showAddressDialog = ref(false)
-
 const userInfoFormRef = ref(null)
 const addressFormRef = ref(null)
 
@@ -330,24 +337,6 @@ const addressRules = reactive({
   detailAddress: [{ required: true, message: '请输入详细地址栏', trigger: 'blur' }]
 })
 
-// 模拟中国标准行政区划简易数据源 (真实开发推荐引入现成类库 element-china-area-data)
-const pcaOptions = [
-  {
-    value: '北京市', label: '北京市',
-    children: [{ value: '北京市', label: '北京市', children: [{ value: '东城区', label: '东城区' }, { value: '朝阳区', label: '朝阳区' }, { value: '海淀区', label: '海淀区' }] }]
-  },
-  {
-    value: '广东省', label: '广东省',
-    children: [
-      { value: '广州市', label: '广州市', children: [{ value: '天河区', label: '天河区' }, { value: '越秀区', label: '越秀区' }, { value: '海珠区', label: '海珠区' }] },
-      { value: '深圳市', label: '深圳市', children: [{ value: '福田区', label: '福田区' }, { value: '南山区', label: '南山区' }, { value: '宝安区', label: '宝安区' }] }
-    ]
-  },
-  {
-    value: '上海市', label: '上海市',
-    children: [{ value: '上海市', label: '上海市', children: [{ value: '黄浦区', label: '黄浦区' }, { value: '徐汇区', label: '徐汇区' }, { value: '静安区', label: '静安区' }] }]
-  }
-]
 
 // 监听级联选择，拆分省、市、区
 const handleAreaChange = (value) => {
@@ -385,76 +374,136 @@ const submitRecharge = () => {
   isRecharging.value = false
 }
 
-// 用户网络请求
 const getUserProfile = async () => {
   try {
-    const response = await request.get('/user/info')
-    if (response) {
-      Object.assign(userInfo, {
-        userName: response.userName, nickName: response.nickName, email: response.email,
-        phonenumber: response.phonenumber || '', sex: response.sex || '0', memberId: response.memberId || '2093620852256'
-      })
-    }
-  } catch (error) { console.error(error) }
+    const res = await getAuthInfoApi()
+
+    Object.assign(userInfo, {
+      userName: res.userName,
+      nickName: res.nickName,
+      email: res.email,
+      phonenumber: res.phonenumber,
+      sex: res.sex ?? '0'
+    })
+  } catch (e) {
+    ElMessage.error('获取用户信息失败')
+  }
 }
 
 const handleUpdateUser = async (formEl) => {
   if (!formEl) return
   await formEl.validate(async (valid) => {
     if (valid) {
-      await request.put('/system/user/profile', userInfo)
-      ElMessage.success('个人信息更新成功'); isEdit.value = false
-    } else { ElMessage.error('表单输入有误，请修正！') }
+      try {
+        // 1. 发送请求 (确保传入的是纯对象，防止 reactive 干扰)
+        await updateUserInfoApi({ ...userInfo })
+        ElMessage.success('个人信息更新成功')
+        isEdit.value = false
+        userStore.userInfo = {
+          userId: userInfo.userId,
+          userName: userInfo.userName,
+          nickName: userInfo.nickName
+        }
+        
+      } catch (error) {
+        console.error('更新失败', error)
+        ElMessage.error('更新失败，请重试')
+      }
+    } else {
+      ElMessage.error('表单输入有误，请修正！')
+    }
   })
 }
 
 /* ================= 地址簿保存与校验逻辑 ================= */
 const openAddressDialog = (row) => {
   if (row) {
-    // 回显编辑数据
-    Object.assign(addressForm, {
-      ...row,
-      areaCascader: [row.province, row.city, row.region] // 重构回显级联器
-    })
+    // 回显编辑数据 (row 本身已经是映射好的数据，直接拷贝即可)
+    Object.assign(addressForm, row)
   } else {
-    Object.assign(addressForm, { id: null, receiverName: '', receiverPhone: '', areaCascader: [], province: '', city: '', region: '', detailAddress: '' })
+    // 初始化空表单
+    Object.assign(addressForm, { 
+      id: null, receiverName: '', receiverPhone: '', areaCascader: [], 
+      province: '', city: '', region: '', detailAddress: '' 
+    })
   }
   showAddressDialog.value = true
 }
 
 const saveAddress = async (formEl) => {
   if (!formEl) return
-  // 全局校验触发
-  await formEl.validate((valid) => {
-    if (valid) {
+  await formEl.validate(async (valid) => {
+    if (!valid) return ElMessage.error('请修正表单信息')
+    
+    try {
+      const apiData = mapFormToApi(addressForm)
+      
       if (addressForm.id) {
         // 编辑地址
-        const idx = addressList.value.findIndex(a => a.id === addressForm.id)
-        if (idx !== -1) addressList.value[idx] = { ...addressForm }
+        await addressApi.updateAddress(addressForm.id, apiData)
         ElMessage.success('地址修改成功')
       } else {
         // 新增地址
-        addressList.value.push({ ...addressForm, id: Date.now() })
+        await addressApi.addAddress(apiData)
         ElMessage.success('地址添加成功')
       }
       showAddressDialog.value = false
-    } else {
-      ElMessage.error('地址信息不合规范，请根据红字提示修正！')
+      loadAddressList() // 刷新列表
+    } catch (e) {
+      ElMessage.error('保存失败')
     }
   })
 }
+const mapApiToForm = (item) => ({
+  id: item.id,
+  receiverName: item.name,
+  receiverPhone: item.phone,
+  province: item.province,
+  city: item.city,
+  region: item.district, // API 的 district 对应表单的 region
+  detailAddress: item.detail,
+  isDefault: item.isDefault,
+  areaCascader: [item.province, item.city, item.district]
+})
 
+// 转换 表单数据 -> API 参数
+const mapFormToApi = (form) => ({
+  name: form.receiverName,
+  phone: form.receiverPhone,
+  province: form.province,
+  city: form.city,
+  district: form.region, // 表单的 region 对应 API 的 district
+  detail: form.detailAddress,
+  isDefault: form.isDefault || 0
+})
 const resetAddressForm = (formEl) => {
   if (formEl) formEl.resetFields()
 }
-
-const deleteAddress = async (id) => {
-  await ElMessageBox.confirm('确定要删除该地址吗？', '提示', { type: 'warning' })
-  addressList.value = addressList.value.filter(a => a.id !== id)
-  ElMessage.success('地址已删除')
+const loadAddressList = async () => {
+  try {
+    const res = await addressApi.getAddressList()
+    // 使用 map 进行转换
+    addressList.value = (res || []).map(item => mapApiToForm(item))
+  } catch (e) {
+    ElMessage.error('获取地址列表失败')
+  }
 }
 
-onMounted(() => { getUserProfile() })
+const deleteAddress = async (id) => {
+  try {
+    await ElMessageBox.confirm('确定要删除该地址吗？', '提示', { type: 'warning' })
+    await addressApi.deleteAddress(id)
+    ElMessage.success('地址已删除')
+    loadAddressList()
+  } catch (e) {
+    if (e !== 'cancel') ElMessage.error('删除失败')
+  }
+}
+
+onMounted(() => { 
+  getUserProfile() 
+  loadAddressList()
+})
 </script>
 
 <style scoped>

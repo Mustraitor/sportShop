@@ -539,6 +539,16 @@ onUnmounted(() => {
     padding: 2px 0;
     gap: 20px;
     overflow: hidden;
+    // 平板端优化
+    @media (max-width: 1024px) {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    // 手机端优化
+    @media (max-width: 768px) {
+      grid-template-columns: repeat(2, 1fr); // 强制两列
+      gap: 12px;
+    }
   }
 }
 // swiper
@@ -740,6 +750,9 @@ onUnmounted(() => {
 
   .season-banner-box {
     height: 190px;
+  }
+  .pagination-container {
+    display: none; // 假设外层包裹了分页组件
   }
 }
 

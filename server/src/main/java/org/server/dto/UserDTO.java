@@ -33,7 +33,6 @@ public class UserDTO {
         @NotBlank(message = "密码不能为空")
         private String password;
 
-        // 🌟 新增字段
         @NotBlank(message = "请确认密码")
         private String confirmPassword;
 

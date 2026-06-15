@@ -3,7 +3,11 @@ import { ref } from 'vue'
 
 export const useUserStore = defineStore('user', () => {
     const token = ref('')
-    const userInfo = ref({})
+    const userInfo = ref({
+        userId: null,
+        userName: '',
+        nickName: '' 
+    })
     const isLoginVisible = ref(false)
     const cartTotalCount = ref(0)
 

@@ -13,7 +13,7 @@ pinia.use(piniaPluginPersistedstate)
 
 app.use(pinia)
 app.use(router)
-app.use(ElementPlus)
+app.use(ElementPlus, { zIndex: 3000 })
 
 //  初始化游客ID
 const userStore = useUserStore()

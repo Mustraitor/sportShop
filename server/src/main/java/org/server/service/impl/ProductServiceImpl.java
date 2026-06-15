@@ -1,6 +1,7 @@
 package org.server.service.impl;
 
 // 1. 框架核心及切面事务注解
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.server.common.exception.BusinessException;
 import org.server.entity.Category;
 import org.server.mapper.CategoryMapper;
@@ -28,6 +29,7 @@ import org.server.vo.PageResult;
 import org.server.vo.ProductVO;
 
 // 4. Java 核心工具包
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -103,7 +105,6 @@ public class ProductServiceImpl implements ProductService {
 
     @Override
     public ProductVO.Detail getDetailById(Long id) {
-        // ✂️ 简化：基于 @TableLogic 机制，如果该商品已被逻辑删除，返回的直接就是 null
         Product product = productMapper.selectById(id);
         if (product == null) {
             return null;
@@ -269,8 +270,32 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteProductById(Long id) {
-        // 🌟 终极简化：有了 @TableLogic 注解，直接调用原生的 deleteById
-        // MyBatis-Plus 在底层会自动把它转化成 UPDATE product SET is_deleted = 1 WHERE id = ?
         productMapper.deleteById(id);
+    }
+    @Override
+    public List<ProductVO.Simple> searchByKeyword(String keyword) {
+        if (keyword == null || keyword.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 1. 查询数据库
+        QueryWrapper<Product> queryWrapper = new QueryWrapper<>();
+        queryWrapper.like("name", keyword)
+                .or()
+                .like("description", keyword)
+                .eq("status", 1);
+
+        List<Product> productList = productMapper.selectList(queryWrapper);
+
+        // 2. 核心转换逻辑：实例化 ProductVO.Simple
+        return productList.stream().map(product -> {
+            // 关键改动在这里：实例化内部类 Simple
+            ProductVO.Simple vo = new ProductVO.Simple();
+
+            // 记得赋值，BeanUtils 会自动匹配同名字段
+            BeanUtils.copyProperties(product, vo);
+
+            return vo;
+        }).collect(Collectors.toList());
     }
 }

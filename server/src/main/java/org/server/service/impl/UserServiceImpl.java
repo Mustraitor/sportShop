@@ -1,4 +1,5 @@
 package org.server.service.impl;
+import java.util.Date;
 import java.util.UUID;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -13,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
@@ -100,6 +102,44 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         String randomNick = "用户_" + UUID.randomUUID().toString().substring(0, 8);
         newUser.setNickName(randomNick);
         userMapper.insert(newUser);
+    }
+
+    @Override
+    public User findByPhonenumber(String phonenumber) {
+        return userMapper.findByPhonenumber(phonenumber);
+    }
+
+    @Override
+    @Transactional
+    public User findOrCreateByPhonenumber(String phonenumber) {
+        String phone = phonenumber.trim();
+        User user = userMapper.findByPhonenumber(phone);
+        if (user == null) {
+            System.out.println("=== 正在执行新用户创建逻辑 ===");
+            user = new User();
+
+            String suffix = phone.length() >= 4 ? phone.substring(phone.length() - 4) : phone;
+            user.setUserName("手机用户_" + suffix);
+
+            user.setNickName("用户");
+            user.setPhonenumber(phone);
+            user.setUserType("00");
+            user.setSex("0");
+            user.setStatus("0");
+            user.setDelFlag("0");
+            user.setCreateBy("system");
+            user.setCreateTime(new Date());
+            user.setUpdateBy("system");
+            user.setUpdateTime(new Date());
+
+            String randomPwd = UUID.randomUUID().toString().substring(0, 8);
+            user.setPassword(passwordEncoder.encode(randomPwd));
+            System.out.println("=== 调试: 此时的 phone = " + phone);
+            System.out.println("=== 调试: 此时的 suffix = " + suffix);
+            System.out.println("=== 调试: 准备插入的 userName = " + user.getUserName());
+            userMapper.insert(user);
+        }
+        return user;
     }
 }
 

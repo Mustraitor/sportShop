@@ -23,4 +23,9 @@ public interface UserMapper extends BaseMapper<User> {
             "WHERE user_id = #{userId} " +
             "AND balance >= #{amount}")
     int decreaseBalance(@Param("userId") Long userId, @Param("amount") BigDecimal amount);
+
+    @Mapper
+    @Select("SELECT * FROM sys_user WHERE phonenumber = #{phonenumber}")
+    User findByPhonenumber(@Param("phonenumber") String phonenumber);
+
 }

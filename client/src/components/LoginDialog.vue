@@ -1,18 +1,20 @@
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onUnmounted, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
-import { loginApi, registerApi } from '@/api/user'   // 导入 loginApi 和 registerApi
+import { loginApi, registerApi } from '@/api/user'
+import { sendSmsCodeApi, smsLoginApi } from '@/api/user' 
+import { ElMessage } from 'element-plus'
+
 const userStore = useUserStore()
 const showTabs = true
 const activeTab = ref('account')
 const loading = ref(false)
-/** 表单数据 */
+
 const loginForm = reactive({
   username: '',
   password: ''
 })
 
-/** 账号登录 */
 const handleLogin = async () => {
   if (loading.value) return
   loading.value = true
@@ -25,34 +27,113 @@ const handleLogin = async () => {
         const storeObj = JSON.parse(storeStr)
         guestIdToMerge = storeObj.guestId 
       } catch (e) {
-        console.error('解析 user-store 失败', e)
+        console.error(e)
       }
     }
 
     const resData = await loginApi({
       username: loginForm.username,
       password: loginForm.password,
-      guestId: guestIdToMerge // 这里传给后端，后端就能正确合并了
+      guestId: guestIdToMerge
     })
 
-    // 登录成功后，调用 Store 的逻辑进行状态清理
     userStore.setLoginInfo(resData.token, {
       userId: resData.userId,
-      userName: resData.userName
+      userName: resData.userName,
+      nickName: resData.nickName
     })
-
-    loginForm.username = ''
-    loginForm.password = ''
+    
+    ElMessage.success('登录成功')
+    userStore.hideLogin()
   } catch (err) {
-    console.error('登录失败:', err)
+    console.error(err)
+    ElMessage.error(err.response?.data?.msg || '登录失败，请检查账号密码') 
   } finally {
     loading.value = false
   }
 }
 
-/** 短信登录（预留） */
+const smsForm = reactive({
+  phone: '',
+  code: ''
+})
+
+const countdown = ref(0)
+let timer = null
+
+const sendSmsCode = async () => {
+  const phoneReg = /^1[3-9]\d{9}$/
+  if (!smsForm.phone) {
+    ElMessage.warning('请输入手机号')
+    return
+  }
+  if (!phoneReg.test(smsForm.phone)) {
+    ElMessage.warning('手机号格式不正确')
+    return
+  }
+  if (countdown.value > 0) {
+    ElMessage.warning(`请等待 ${countdown.value} 秒后再试`)
+    return
+  }
+
+  try {
+    await sendSmsCodeApi({
+      phoneNumber: smsForm.phone,
+      scene: 'login'
+    })
+    ElMessage.success('验证码已发送')
+    
+    countdown.value = 60
+    timer = setInterval(() => {
+      if (countdown.value <= 1) {
+        clearInterval(timer)
+        countdown.value = 0
+      } else {
+        countdown.value--
+      }
+    }, 1000)
+  } catch (err) {
+    console.error(err)
+    ElMessage.error(err.response?.data?.msg || '发送失败，请稍后重试')
+  }
+}
+
 const handleSMSLogin = async () => {
-  console.log('短信登录功能待实现')
+  if (loading.value) return
+  loading.value = true
+
+  try {
+    let guestIdToMerge = null
+    const storeStr = localStorage.getItem('user-store')
+    if (storeStr) {
+      try {
+        const storeObj = JSON.parse(storeStr)
+        guestIdToMerge = storeObj.guestId
+      } catch (e) { 
+        console.error(e) 
+      }
+    }
+
+    const resData = await smsLoginApi({
+      phone: smsForm.phone,
+      code: smsForm.code,
+      guestId: guestIdToMerge
+    })
+
+    userStore.setLoginInfo(resData.token, {
+      userId: resData.userId,
+      userName: resData.userName,
+      nickName: resData.nickName
+    })
+
+    ElMessage.success('登录成功')
+    userStore.hideLogin()
+  } catch (err) {
+    console.error(err)
+    ElMessage.error(err.response?.data?.msg || '登录失败，请稍后重试')
+  } finally {
+    loading.value = false
+  }
 }
 
 const registerForm = reactive({
@@ -64,39 +145,64 @@ const registerForm = reactive({
 })
 
 const handleRegister = async () => {
-  // 前端校验（保持不变）
   if (!registerForm.username || !registerForm.password) {
-    alert('请填写完整信息')
+    ElMessage.warning('请填写完整信息')
     return
   }
   if (registerForm.password !== registerForm.confirmPwd) {
-    alert('两次密码输入不一致')
+    ElMessage.warning('两次密码输入不一致')
     return
   }
   if (registerForm.password.length < 6) {
-    alert('密码长度至少6位')
+    ElMessage.warning('密码长度至少6位')
     return
   }
 
   try {
-    // 调用注册 API - 增加 confirmPassword 字段
     await registerApi({
       username: registerForm.username,
       password: registerForm.password,
       confirmPassword: registerForm.confirmPwd   
     })
-    alert('注册成功，请登录')
-    // 清空表单
-    registerForm.username = ''
-    registerForm.password = ''
-    registerForm.confirmPwd = ''
-    // 切换回登录页
+    ElMessage.success('注册成功，请登录')
     activeTab.value = 'account'
   } catch (err) {
-    console.error('注册失败:', err)
-    alert(err.response?.data?.msg || '注册失败，请稍后重试')
+    console.error(err)
+    ElMessage.error(err.response?.data?.msg || '注册失败，请稍后重试')
   }
 }
+
+const clearAllForms = () => {
+  loginForm.username = ''
+  loginForm.password = ''
+  
+  smsForm.phone = ''
+  smsForm.code = ''
+  
+  registerForm.username = ''
+  registerForm.password = ''
+  registerForm.confirmPwd = ''
+  registerForm.phone = ''
+  registerForm.code = ''
+  
+  activeTab.value = 'account'
+}
+
+watch(
+  () => userStore.isLoginVisible,
+  (newVal) => {
+    if (!newVal) {
+      clearAllForms()
+    }
+  }
+)
+
+onUnmounted(() => {
+  if (timer) {
+    clearInterval(timer)
+    timer = null
+  }
+})
 </script>
 <template>
   <Transition name="fade">
@@ -106,11 +212,9 @@ const handleRegister = async () => {
       @click.self="userStore.hideLogin"
     >
       <div class="login-card">
-        <!-- 关闭按钮 -->
         <button class="close-btn" @click="userStore.hideLogin">×</button>
 
-        <!-- === Tabs（可隐藏） === -->
-        <div v-if="showTabs" class="login-tabs">
+        <div v-if="showTabs && activeTab !== 'register'" class="login-tabs">
           <div 
             :class="['tab', activeTab === 'account' && 'active']"
             @click="activeTab = 'account'"
@@ -126,13 +230,6 @@ const handleRegister = async () => {
           </div>
         </div>
 
-        <!-- 标题 -->
-        <!-- <div class="login-header">
-          <h2>欢迎回来</h2>
-          <p>登录以开启您的“型动”之旅</p>
-        </div> -->
-
-        <!-- === 账号密码登录 === -->
         <form
           v-if="activeTab === 'account'"
           @submit.prevent="handleLogin"
@@ -140,36 +237,24 @@ const handleRegister = async () => {
         >
           <div class="input-group">
             <label>用户名</label>
-            <input
-              v-model="loginForm.username"
-              type="text"
-              placeholder="请输入用户名"
-              required
-            />
+            <input v-model="loginForm.username" type="text" placeholder="请输入用户名" required />
           </div>
 
           <div class="input-group">
             <label>密码</label>
-            <input
-              v-model="loginForm.password"
-              type="password"
-              placeholder="请输入密码"
-              required
-            />
+            <input v-model="loginForm.password" type="password" placeholder="请输入密码" required />
             <span class="forgot-pwd">忘记密码？</span>
           </div>
 
           <button type="submit" class="submit-btn" :disabled="loading">
             <span>登录</span>
-            <!-- <span v-else class="loader"></span> -->
           </button>
+          
           <div class="login-footer">
-          还没有账号？<span class="register-link"  :class="['tab', activeTab === 'register' && 'active']"
-            @click="activeTab = 'register'">立即注册</span>
-        </div>
+            还没有账号？<span class="register-link" @click="activeTab = 'register'">立即注册</span>
+          </div>
         </form>
 
-        <!-- === 短信登录（预留） === -->
         <form
           v-else-if="activeTab === 'sms'"
           @submit.prevent="handleSMSLogin"
@@ -177,20 +262,29 @@ const handleRegister = async () => {
         >
           <div class="input-group">
             <label>手机号</label>
-            <input type="text" placeholder="请输入手机号" />
+            <input v-model="smsForm.phone" type="tel" placeholder="请输入手机号" required />
           </div>
 
           <div class="input-group">
             <label>验证码</label>
             <div class="sms-row">
-              <input type="text" placeholder="短信验证码" />
-              <button class="send-btn" type="button">发送</button>
+              <input v-model="smsForm.code" type="text" placeholder="短信验证码" required />
+              <button
+                type="button"
+                class="send-btn"
+                :disabled="countdown > 0"
+                @click="sendSmsCode"
+              >
+                {{ countdown > 0 ? `${countdown}秒后重试` : '发送验证码' }}
+              </button>
             </div>
           </div>
 
-          <button type="submit" class="submit-btn">登录</button>
+          <button type="submit" class="submit-btn" :disabled="loading">
+            {{ loading ? '登录中...' : '登录' }}
+          </button>
         </form>
-        <!-- === 注册账号 === -->
+        
         <form
           v-else-if="activeTab === 'register'"
           @submit.prevent="handleRegister"
@@ -198,23 +292,26 @@ const handleRegister = async () => {
         >
           <div class="input-group">
             <label>用户名</label>
-            <input v-model="registerForm.username" type="text" placeholder="请输入用户名" />
+            <input v-model="registerForm.username" type="text" placeholder="请输入用户名" required />
           </div>
           <div class="input-group">
             <label>密码</label>
-            <input v-model="registerForm.password" type="password" placeholder="请输入密码" />
+            <input v-model="registerForm.password" type="password" placeholder="请输入密码" required />
           </div>
 
           <div class="input-group">
             <label>确认密码</label>
-            <input v-model="registerForm.confirmPwd" type="password" placeholder="请再次输入密码" />
+            <input v-model="registerForm.confirmPwd" type="password" placeholder="请再次输入密码" required />
           </div>
 
           <button type="submit" class="submit-btn">
             注册
           </button>
+
+          <div class="login-footer">
+            已有账号？<span class="register-link" @click="activeTab = 'account'">返回登录</span>
+          </div>
         </form>
-        <!-- 底部提示 -->
 
       </div>
     </div>
