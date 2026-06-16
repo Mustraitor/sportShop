@@ -3,7 +3,7 @@ package org.server.service;
 import org.server.dto.UserDTO;
 import org.server.vo.UserVO;
 import org.server.entity.User;
-import java.util.List;
+import java.math.BigDecimal;
 
 /**
  * 用户模块业务层接口
@@ -30,4 +30,8 @@ public interface UserService {
      * 根据手机号查找或创建用户（自动注册）
      */
     User findOrCreateByPhonenumber(String phonenumber);
+
+    BigDecimal getUserBalance(Long userId);
+
+    void increaseBalance(Long userId, BigDecimal amount);
 }

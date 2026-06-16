@@ -57,8 +57,8 @@ const reviewFilters = ref([
   { label: '全部', value: 'all', count: 0 },
   { label: '好评', value: 'good', count: 0 },
   { label: '中评', value: 'medium', count: 0 },
-  { label: '差评', value: 'bad', count: 0 },
-  { label: '有图', value: 'hasImage', count: 0 }
+  { label: '差评', value: 'bad', count: 0 }
+  // { label: '有图', value: 'hasImage', count: 0 }
 ])
 
 const product = ref({
@@ -643,9 +643,16 @@ onMounted(() => {
                   <div class="reviewer-name">{{ review.userName || '匿名用户' }}</div>
                   <div class="review-date">{{ formatDate(review.date || review.createdAt) }}</div>
                 </div>
-                <div class="review-rating">
-                  <span v-for="n in 5" :key="n" class="star" :class="{ filled: n <= review.rating }">★</span>
-                </div>
+              <div class="review-rating">
+                <span 
+                  v-for="n in 5" 
+                  :key="n" 
+                  class="star" 
+                  :class="{ 'filled-star': n <= review.rating, 'empty-star': n > review.rating }"
+                >
+                  ★
+                </span>
+              </div>
               </div>
               <div class="review-content">{{ review.content }}</div>
               <div v-if="review.images && review.images.length > 0" class="review-images">
@@ -676,15 +683,6 @@ onMounted(() => {
 
       <div class="bottom-bar mobile-only">
         <div class="bottom-bar-left">
-          <!-- <router-link to="/" class="bottom-icon">
-            <span class="icon">🏠</span>
-            <span class="text">首页</span>
-          </router-link>
-          <router-link to="/cart" class="bottom-icon">
-            <span class="icon">🛒</span>
-            <span class="text">购物车</span>
-            <span v-if="cartCount > 0" class="cart-badge">{{ cartCount }}</span>
-          </router-link> -->
         </div>
         <div class="bottom-bar-right">
           <button class="bottom-btn add-to-cart-btn" @click="addToCart">加入购物车</button>
@@ -1192,5 +1190,18 @@ $transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   .option-item { flex-direction: row; align-items: flex-start; }
   .quantity-selector { flex-direction: row; align-items: center; }
   .option-label, .quantity-label { margin-top: 8px; margin-bottom: 0; }
+}
+/* 评价星级通用基础样式 */
+.review-rating {
+  display: flex;
+  align-items: center;
+  gap: 2px; 
+  font-size: 16px; 
+}
+.star.filled-star {
+  color: #ffb800; 
+}
+.star.empty-star {
+  color: #e4e7ed; 
 }
 </style>

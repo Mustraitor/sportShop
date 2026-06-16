@@ -125,45 +125,52 @@
         </div>
       </div>
 
-      <div v-if="activeNav === 'wallet'" class="content-card wallet-container">
-        <div v-if="!isRecharging" class="wallet-card">
-          <div class="wallet-label">账户余额</div>
-          <div class="wallet-balance">¥ {{ Number(walletBalance).toFixed(2) }}</div>
-          <el-button type="danger" class="recharge-btn" @click="isRecharging = true">充 值</el-button>
+  <div v-if="activeNav === 'wallet'" class="content-card wallet-container">
+    <div v-if="!isRecharging" class="wallet-card">
+      <div class="wallet-label">账户余额</div>
+      <div class="wallet-balance">¥ {{ Number(walletBalance).toFixed(2) }}</div>
+      <el-button type="danger" class="recharge-btn" @click="isRecharging = true">充 值</el-button>
+    </div>
+
+    <div v-else class="recharge-panel">
+      <div class="recharge-header">
+        <h3 class="section-title">安全充值中心</h3>
+        <el-button size="small" @click="cancelRecharge">返回钱包</el-button>
+      </div>
+      
+      <div class="amount-grid">
+        <div 
+          v-for="amount in presetAmounts" 
+          :key="amount" 
+          class="amount-item"
+          :class="{ active: selectedAmount === amount && !isCustom }"
+          @click="selectPresetAmount(amount)"
+        >
+          {{ amount }}元
         </div>
-
-        <div v-else class="recharge-panel">
-          <div class="recharge-header">
-            <h3 class="section-title">安全充值中心</h3>
-            <el-button size="small" @click="cancelRecharge">返回钱包</el-button>
-          </div>
-          
-          <div class="amount-grid">
-            <div 
-              v-for="amount in presetAmounts" 
-              :key="amount" 
-              class="amount-item"
-              :class="{ active: selectedAmount === amount && !isCustom }"
-              @click="selectPresetAmount(amount)"
-            >
-              {{ amount }}元
-            </div>
-            
-            <div 
-              class="amount-item custom-item"
-              :class="{ active: isCustom }"
-              @click="handleCustomAmount"
-            >
-              {{ isCustom ? `${customAmount}元` : '自定义数额' }}
-            </div>
-          </div>
-
-          <div class="recharge-action">
-            <p class="pay-tip">应付金额：<span>¥ {{ finalAmount }}</span></p>
-            <el-button type="danger" class="confirm-pay-btn" @click="submitRecharge">确认支付</el-button>
-          </div>
+        
+        <div 
+          class="amount-item custom-item"
+          :class="{ active: isCustom }"
+          @click="handleCustomAmount"
+        >
+          {{ isCustom ? `${customAmount}元` : '自定义数额' }}
         </div>
       </div>
+
+      <div class="recharge-action">
+        <p class="pay-tip">应付金额：<span>¥ {{ finalAmount }}</span></p>
+        <el-button 
+          type="danger" 
+          class="confirm-pay-btn" 
+          :loading="isSubmittingRecharge"
+          @click="submitRecharge"
+        >
+          确认支付
+        </el-button>
+      </div>
+    </div>
+  </div>
 
       <div v-if="activeNav === 'address'" class="content-card">
         <div class="display-header">
@@ -267,19 +274,19 @@ import {
 import { regionData } from 'element-china-area-data'
 import { useUserStore } from '@/stores/user' 
 
-import { getAuthInfoApi, updateUserInfoApi } from '@/api/user'
+// 🎯 修改：引入余额与充值接口
+import { getAuthInfoApi, updateUserInfoApi, getUserBalanceApi, chargeBalanceApi } from '@/api/user'
 import { addressApi } from '@/api/address'
 import { ElMessage, ElMessageBox } from 'element-plus'
+
 const pcaOptions = regionData
 const userStore = useUserStore() 
+
 const navItems = [
   { key: 'home',      label: '我的首页',   icon: 'User' },
   { key: 'info',      label: '个人信息',   icon: 'User' },
   { key: 'wallet',    label: '我的钱包',   icon: 'Wallet' },
   { key: 'address',   label: '地址管理',   icon: 'Location' },
-  // { key: 'orders',    label: '购买记录',   icon: 'ShoppingCart' },
-  // { key: 'favorites', label: '收藏夹',     icon: 'Collection' },
-  // { key: 'history',   label: '历史浏览',   icon: 'Timer' },
 ]
 
 const activeNav = ref('home')
@@ -291,6 +298,7 @@ const addressFormRef = ref(null)
 // 钱包变量
 const walletBalance = ref(0.00)
 const isRecharging = ref(false)
+const isSubmittingRecharge = ref(false) // 🎯 新增：控制支付按钮的 loading 状态
 const presetAmounts = [50, 100, 200, 300, 500]
 const selectedAmount = ref(50)
 const isCustom = ref(false)
@@ -317,19 +325,17 @@ const formRules = reactive({
 /* ================= 地址簿四栏与格式规范核心定义 ================= */
 const addressList = ref([])
 
-// 拆分为4栏的响应式数据模型
 const addressForm = reactive({
   id: null,
   receiverName: '',
   receiverPhone: '',
-  areaCascader: [], // 绑定级联器存储的 [省, 市, 区] 数组
-  province: '',     // 栏1：省
-  city: '',         // 栏2：市
-  region: '',       // 栏3：区
-  detailAddress: '' // 栏4：详细地址
+  areaCascader: [], 
+  province: '',     
+  city: '',         
+  region: '',       
+  detailAddress: '' 
 })
 
-// 地址簿特有规约校验规则
 const addressRules = reactive({
   receiverName: [{ required: true, message: '请输入收货人姓名', trigger: 'blur' }],
   receiverPhone: [{ required: true, validator: validatePhone, trigger: ['blur', 'change'] }],
@@ -337,8 +343,6 @@ const addressRules = reactive({
   detailAddress: [{ required: true, message: '请输入详细地址栏', trigger: 'blur' }]
 })
 
-
-// 监听级联选择，拆分省、市、区
 const handleAreaChange = (value) => {
   if (value && value.length === 3) {
     addressForm.province = value[0]
@@ -357,27 +361,59 @@ const handleNavClick = (key) => {
   if (key !== 'wallet') isRecharging.value = false
 }
 
-// 充值中心逻辑
+/* ================= 钱包充值与余额查询核心逻辑 ================= */
+
+// 🎯 新增：调用后端 API 获取真实钱包余额
+const loadWalletBalance = async () => {
+  try {
+    const res = await getUserBalanceApi()
+    // 假设你的 axios 拦截器已经直接返回了 data 里的值
+    walletBalance.value = res || 0.00
+  } catch (error) {
+    ElMessage.error('获取钱包余额失败')
+  }
+}
+
 const selectPresetAmount = (amount) => { isCustom.value = false; selectedAmount.value = amount }
+
 const handleCustomAmount = () => {
   ElMessageBox.prompt('请输入您想要充值的自定义金额 (元)', '自定义金额', {
     confirmButtonText: '确定', cancelButtonText: '取消', inputPattern: /^[1-9]\d*$/, inputErrorMessage: '请输入大于0的正整数金额',
   }).then(({ value }) => { isCustom.value = true; customAmount.value = parseInt(value, 10) })
     .catch(() => { if (customAmount.value === 0) isCustom.value = false })
 }
+
 const cancelRecharge = () => { isRecharging.value = false; isCustom.value = false; selectedAmount.value = 50 }
-const submitRecharge = () => {
+
+// 🎯 修改：重构支付提交逻辑，对接后端 API
+const submitRecharge = async () => {
   const amountToPay = parseFloat(finalAmount.value)
   if (amountToPay <= 0) return ElMessage.warning('请选择有效的充值金额')
-  walletBalance.value += amountToPay
-  ElMessage.success(`成功充值 ¥ ${amountToPay.toFixed(2)}！`)
-  isRecharging.value = false
+
+  // 开启 loading 防重复点击
+  isSubmittingRecharge.value = true
+  
+  try {
+    // 调用后端充值 API
+    await chargeBalanceApi({ amount: amountToPay })
+    
+    ElMessage.success(`成功充值 ¥ ${amountToPay.toFixed(2)}！`)
+    isRecharging.value = false
+    
+    // 充值成功后，重新获取最新余额
+    await loadWalletBalance()
+  } catch (error) {
+    ElMessage.error('充值失败，请稍后重试')
+  } finally {
+    // 无论成功失败，关闭 loading
+    isSubmittingRecharge.value = false
+  }
 }
 
+/* ================= 用户信息逻辑 ================= */
 const getUserProfile = async () => {
   try {
     const res = await getAuthInfoApi()
-
     Object.assign(userInfo, {
       userName: res.userName,
       nickName: res.nickName,
@@ -395,7 +431,6 @@ const handleUpdateUser = async (formEl) => {
   await formEl.validate(async (valid) => {
     if (valid) {
       try {
-        // 1. 发送请求 (确保传入的是纯对象，防止 reactive 干扰)
         await updateUserInfoApi({ ...userInfo })
         ElMessage.success('个人信息更新成功')
         isEdit.value = false
@@ -404,7 +439,6 @@ const handleUpdateUser = async (formEl) => {
           userName: userInfo.userName,
           nickName: userInfo.nickName
         }
-        
       } catch (error) {
         console.error('更新失败', error)
         ElMessage.error('更新失败，请重试')
@@ -418,10 +452,8 @@ const handleUpdateUser = async (formEl) => {
 /* ================= 地址簿保存与校验逻辑 ================= */
 const openAddressDialog = (row) => {
   if (row) {
-    // 回显编辑数据 (row 本身已经是映射好的数据，直接拷贝即可)
     Object.assign(addressForm, row)
   } else {
-    // 初始化空表单
     Object.assign(addressForm, { 
       id: null, receiverName: '', receiverPhone: '', areaCascader: [], 
       province: '', city: '', region: '', detailAddress: '' 
@@ -437,52 +469,50 @@ const saveAddress = async (formEl) => {
     
     try {
       const apiData = mapFormToApi(addressForm)
-      
       if (addressForm.id) {
-        // 编辑地址
         await addressApi.updateAddress(addressForm.id, apiData)
         ElMessage.success('地址修改成功')
       } else {
-        // 新增地址
         await addressApi.addAddress(apiData)
         ElMessage.success('地址添加成功')
       }
       showAddressDialog.value = false
-      loadAddressList() // 刷新列表
+      loadAddressList() 
     } catch (e) {
       ElMessage.error('保存失败')
     }
   })
 }
+
 const mapApiToForm = (item) => ({
   id: item.id,
   receiverName: item.name,
   receiverPhone: item.phone,
   province: item.province,
   city: item.city,
-  region: item.district, // API 的 district 对应表单的 region
+  region: item.district, 
   detailAddress: item.detail,
   isDefault: item.isDefault,
   areaCascader: [item.province, item.city, item.district]
 })
 
-// 转换 表单数据 -> API 参数
 const mapFormToApi = (form) => ({
   name: form.receiverName,
   phone: form.receiverPhone,
   province: form.province,
   city: form.city,
-  district: form.region, // 表单的 region 对应 API 的 district
+  district: form.region, 
   detail: form.detailAddress,
   isDefault: form.isDefault || 0
 })
+
 const resetAddressForm = (formEl) => {
   if (formEl) formEl.resetFields()
 }
+
 const loadAddressList = async () => {
   try {
     const res = await addressApi.getAddressList()
-    // 使用 map 进行转换
     addressList.value = (res || []).map(item => mapApiToForm(item))
   } catch (e) {
     ElMessage.error('获取地址列表失败')
@@ -500,9 +530,11 @@ const deleteAddress = async (id) => {
   }
 }
 
+// 🎯 修改：在挂载时同步触发钱包余额的获取
 onMounted(() => { 
   getUserProfile() 
   loadAddressList()
+  loadWalletBalance() // 挂载即请求余额数据
 })
 </script>
 

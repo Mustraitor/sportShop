@@ -82,3 +82,26 @@ export function updateUserInfoApi(data) {
     data
   })
 }
+
+/**
+ * 获取当前登录用户的钱包余额
+ * @returns {Promise} 返回带有 balance 数据的 Result
+ */
+export function getUserBalanceApi() {
+  return request({
+    url: '/user/balance',
+    method: 'get'
+  })
+}
+
+/**
+ * 为当前登录用户充值增加余额
+ * @param {Object} params - { amount: 100.00 }
+ */
+export function chargeBalanceApi(params) {
+  return request({
+    url: '/user/charge',
+    method: 'post',
+    params
+  })
+}

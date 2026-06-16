@@ -1,7 +1,9 @@
 package org.server.service.impl;
+import java.math.BigDecimal;
 import java.util.Date;
 import java.util.UUID;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.server.common.exception.BusinessException;
 import org.server.dto.UserDTO;
@@ -140,6 +142,45 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             userMapper.insert(user);
         }
         return user;
+    }
+    /**
+     * 🎯 新增：实现获取用户余额逻辑
+     */
+    @Override
+    public BigDecimal getUserBalance(Long userId) {
+        User user = this.getById(userId);
+        if (user == null) {
+            throw new BusinessException(404, "用户不存在");
+        }
+        // 如果数据库余额字段为 null，默认返回 0
+        return user.getBalance() != null ? user.getBalance() : BigDecimal.ZERO;
+    }
+    /**
+     * 🎯 新增：原子增加用户余额逻辑（防并发覆写隐患）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void increaseBalance(Long userId, BigDecimal amount) {
+        // 1. 参数合法性校验
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(400, "充值金额必须大于 0");
+        }
+
+        // 2. 检查用户是否存在
+        User user = this.getById(userId);
+        if (user == null) {
+            throw new BusinessException(404, "用户不存在");
+        }
+
+        // 3. 核心并发安全更新：利用数据库底层实现 balance = balance + amount
+        // 对应生成的 SQL 类似于：UPDATE user SET balance = balance + #{amount} WHERE user_id = #{userId}
+        boolean success = this.update(new LambdaUpdateWrapper<User>()
+                .eq(User::getUserId, userId)
+                .setSql("balance = balance + " + amount.doubleValue())); // 将 BigDecimal 转换为符合你实体类的 double 值注入 SQL
+
+        if (!success) {
+            throw new BusinessException(500, "钱包账户充值失败，请稍后重试");
+        }
     }
 }
 

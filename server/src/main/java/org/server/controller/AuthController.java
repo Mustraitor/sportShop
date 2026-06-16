@@ -86,7 +86,8 @@ public class AuthController {
         }
 
         // 2. 根据手机号获取或创建用户（自动注册）
-        User user = userService.findOrCreateByPhonenumber(loginDto.getPhone());
+        User user = userService.
+                findOrCreateByPhonenumber(loginDto.getPhone());
 
         // 3. 生成 JWT token
         String token = JwtUtil.generateToken(user.getUserId(), user.getUserName());

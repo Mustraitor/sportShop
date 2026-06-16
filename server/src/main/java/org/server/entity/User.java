@@ -31,5 +31,5 @@ public class User {
     private String updateBy;
     private Date updateTime;
     private String remark;
-    private Double balance;
+    private BigDecimal balance;
 }
