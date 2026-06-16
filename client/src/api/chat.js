@@ -29,7 +29,6 @@ export function getChatHistory(sessionId) {
 }
 
 /**
- * 💡 新增：获取当前登录用户的所有历史会话列表
  * @returns {Promise<Array>} 返回一个 Promise，与后端的 @GetMapping("/sessions") 对齐，返回 List<ChatSessionVO>
  */
 export function getChatSessions() {

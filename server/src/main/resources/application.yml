@@ -41,7 +41,7 @@ aliyun:
     access-key-secret: ${OSS_SECRET:}
     bucket-name: sportshop-pictures
 ai:
-  api-key: ${AI_API_KEY}
+  api-key: ${AI_API_KEY:}
   api-url: "https://free.v36.cm/v1/chat/completions"
   model: "gpt-4o-mini"
 

@@ -60,7 +60,7 @@ const router = createRouter({
     {
       path: '/AIChat',
       component: () => import("../views/AIChatView.vue"),
-      meta: { requiresAuth: false }
+      meta: { requiresAuth: true }
     },
     {
       path: "/:pathMatch(.*)*",

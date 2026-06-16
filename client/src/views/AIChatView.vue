@@ -36,12 +36,12 @@ const inputMsg = ref('')
 const chatContainer = ref(null)
 const isTyping = ref(false)
 
-// 💡 生成纯数字字符串时间戳，确保能被后端的 Long.valueOf() 完美解析
+// 生成纯数字字符串时间戳，确保能被后端的 Long.valueOf() 完美解析
 const sessionId = ref(localStorage.getItem('current_chat_session_id') || String(Date.now())) 
 
-// ===== 💡 历史会话状态（已剔除 Mock） =====
+// ===== 历史会话状态（已剔除 Mock） =====
 const showHistoryDrawer = ref(false)
-const sessionList = ref([]) // 👈 初始为空，由后端持久层数据注入
+const sessionList = ref([]) // 初始为空，由后端持久层数据注入
 
 // ===== 右侧商品区 / 移动端抽屉状态 =====
 const recommendedProducts = ref([])

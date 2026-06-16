@@ -1,6 +1,6 @@
 // src/utils/image.js
 // 图片智能路由工具
-export const IS_LOCAL_MOCK = true
+export const IS_LOCAL_MOCK = false
 export const defaultPlaceholder = '/products/10001_1.png'
 
 /**

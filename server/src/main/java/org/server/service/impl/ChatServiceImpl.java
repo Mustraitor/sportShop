@@ -97,7 +97,7 @@ public class ChatServiceImpl implements ChatService {
                 newSession.setSessionTitle(dynamicTitle);
             } else {
                 newSession.setUserId(currentUserId);
-                newSession.setSessionTitle(dynamicTitle); // 👈 告别“用户3的AI对话”，直接换成动态标题！
+                newSession.setSessionTitle(dynamicTitle);
             }
 
             newSession.setCreatedAt(LocalDateTime.now());

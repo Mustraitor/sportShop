@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
 
   # =========================
@@ -46,12 +44,11 @@ services:
   # =========================
   # 3. Spring Boot 后端
   # =========================
-  # =========================
-  # 3. Spring Boot 后端
-  # =========================
   sportshop-server:
     build: ./server
     container_name: sportshop-server
+    env_file:
+      - ./server/.env
     ports:
       - "8080:8080"
     depends_on:
