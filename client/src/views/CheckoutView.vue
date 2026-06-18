@@ -174,20 +174,15 @@ const freight = ref(0)
 const discount = ref(0)                
 const directPayAmount = ref(0)         
 
-// 🎯 核心修改 3：编写动态解析商品图函数
+// 编写动态解析商品图函数
 const getGoodsImage = (item) => {
+  // 1. 获取后端返回的原始字段（兼容购物车规格的 mainImage 和订单快照的 picUrl）
   const rawPath = item.mainImage || item.picUrl
-  if (!rawPath) return `${OSS_BASE_URL}upload/default.png`
   
-  // 补全绝对路径
-  const fullUrl = rawPath.startsWith('http') 
-    ? rawPath 
-    : `${OSS_BASE_URL.replace(/\/$/, '')}/${rawPath.replace(/^\/+/, '')}`
-    
-  // 结算清单页列表采用 200 宽度规格
-  return optimizeImage(fullUrl, 200)
+  // 2. 结算清单页列表采用 200 宽度规格，直接交给全能工具类处理
+  // 工具类会自动：防空兜底、判断相对路径、补全 upload/、补全域名、转换 webp
+  return optimizeImage(rawPath, 200)
 }
-
 // ==========================================
 // 4. 计算属性 (Computed)
 // ==========================================

@@ -230,14 +230,11 @@ watch(selectedAddressId, async (newAddressId) => {
   if (order.value.status !== 0 && order.value.status !== 'pending') return
 
   try {
-    // 1. 调用你的业务接口，后端会将新地址信息完整覆盖写入 orders 表对应的 receiver_xxx 字段
     await orderApi.updateOrderAddress({
       orderId: order.value._realBackendId,
       addressId: newAddressId
     })
     ElMessage.success('收货地址修改成功！')
-    
-    // 2. 核心闭环：立刻重新拉取一遍订单详情接口，吃进后端更新后的全新订单快照，实现无缝切换展示！
     await refreshOrderDetail(order.value._realBackendId)
   } catch (error) {
     console.error('同步修改订单地址失败:', error)
@@ -268,11 +265,8 @@ const refreshOrderDetail = async (orderId) => {
 
 // 商品图片路径动态解析
 const getGoodsImage = (rawPath) => {
-  if (!rawPath) return `${OSS_BASE_URL}upload/default.png`
-  const fullUrl = rawPath.startsWith('http') 
-    ? rawPath 
-    : `${OSS_BASE_URL.replace(/\/$/, '')}/${rawPath.replace(/^\/+/, '')}`
-  return optimizeImage(fullUrl, 400)
+  if (!rawPath) return defaultPlaceholder
+  return optimizeImage(rawPath, 400)
 }
 
 const getCurrentStepIndex = () => {

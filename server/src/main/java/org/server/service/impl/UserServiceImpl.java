@@ -103,6 +103,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         newUser.setPassword(passwordEncoder.encode(registerDTO.getPassword()));
         String randomNick = "用户_" + UUID.randomUUID().toString().substring(0, 8);
         newUser.setNickName(randomNick);
+        newUser.setCreateTime(new Date());
+        newUser.setUpdateTime(new Date());
         userMapper.insert(newUser);
     }
 
